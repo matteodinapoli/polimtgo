@@ -4,6 +4,10 @@ import operator
 from os import listdir
 from os.path import isfile, join
 from dateutil import parser
+from pprint import pprint
+
+
+considered_tours = 5
 
 
 def get_tournament_card_count(path):
@@ -40,23 +44,33 @@ def clean_prices_before_any_tournament (prices_dict, tour_dict):
             tour_dict[datePrice] = 0
 
 
-def build_tournament_history(card):
-    tour_path = "PRO_Tournaments\\PT"
-    tour_files = [f for f in listdir(tour_path) if isfile(join(tour_path, f))]
-
-    gp_path = "PRO_Tournaments\\GP"
-    gp_files = [f for f in listdir(gp_path) if isfile(join(gp_path, f))]
-
-    twos_path = "PRO_Tournaments\\2stars"
-    twos_files = [f for f in listdir(twos_path) if isfile(join(twos_path, f))]
+def build_tournament_history(card, avg, onlyMTGO):
 
     tfiles = []
-    for pt in tour_files:
-        tfiles.append(join(tour_path, pt))
-    for gp in gp_files:
-        tfiles.append(join(gp_path, gp))
-    for t in twos_files:
-        tfiles.append(join(twos_path, t))
+
+    if onlyMTGO:
+        mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\Competitive_cleaned"
+        mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
+        for league in mtgo_files:
+            tfiles.append(join(mtgo_path, league))
+
+    else:
+        tour_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\PT"
+        tour_files = [f for f in listdir(tour_path) if isfile(join(tour_path, f))]
+
+        gp_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\GP"
+        gp_files = [f for f in listdir(gp_path) if isfile(join(gp_path, f))]
+
+        twos_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\2stars"
+        twos_files = [f for f in listdir(twos_path) if isfile(join(twos_path, f))]
+
+
+        for pt in tour_files:
+            tfiles.append(join(tour_path, pt))
+        for gp in gp_files:
+            tfiles.append(join(gp_path, gp))
+        for t in twos_files:
+            tfiles.append(join(twos_path, t))
 
     tour_date_count = {}
 
@@ -65,7 +79,20 @@ def build_tournament_history(card):
         tour_date = get_tournament_date(tournament)
         if card in tour_cards:
             tour_date_count[tour_date] = tour_cards[card]
-        elif len(tour_date_count) > 0 and tour_date > min(tour_date_count, key=tour_date_count.get):
+        else:
             tour_date_count[tour_date] = 0
 
-    return tour_date_count
+    pos = 0
+    if avg:
+        ord_tour = sorted(tour_date_count.items())
+        avg_tour = {}
+        for i in ord_tour:
+            avg_val = []
+            for j in xrange(pos, pos - considered_tours, -1):
+                if j >= 0:
+                    avg_val.append(ord_tour[j][1])
+            avg_tour[ord_tour[pos][0]] = (sum(avg_val) / float(len(avg_val)))
+            pos += 1
+        return avg_tour
+    else:
+        return tour_date_count

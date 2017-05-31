@@ -6,7 +6,7 @@ from os.path import isfile, join
 import json
 
 
-basepath = "MTGOprices\\Modern\\"
+basepath = "C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Modern\\"
 treshold = 0.3
 
 subdirs = next(os.walk(basepath))[1]
