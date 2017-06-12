@@ -5,9 +5,12 @@ from os import listdir
 from os.path import isfile, join
 from dateutil import parser
 from pprint import pprint
+import copy
 
 
-considered_tours = 5
+considered_tours = 3
+considered_days = 30
+discount_factor = 0.8
 
 
 def get_tournament_card_count(path):
@@ -18,6 +21,7 @@ def get_tournament_card_count(path):
     card_count_dict = {}
     for deck in decks:
         cards.append(deck["cards"])
+        cards.append(deck["sideboard"])
     for deckCards in cards:
         for tupla_card in deckCards:
             name = tupla_card["name"]
@@ -44,7 +48,7 @@ def clean_prices_before_any_tournament (prices_dict, tour_dict):
             tour_dict[datePrice] = 0
 
 
-def build_tournament_history(card, avg, onlyMTGO):
+def build_tournament_history(card, avg, time, onlyMTGO):
 
     tfiles = []
 
@@ -72,27 +76,41 @@ def build_tournament_history(card, avg, onlyMTGO):
         for t in twos_files:
             tfiles.append(join(twos_path, t))
 
-    tour_date_count = {}
+    tour_date_count = []
 
     for tournament in tfiles:
         tour_cards = get_tournament_card_count(tournament)
         tour_date = get_tournament_date(tournament)
         if card in tour_cards:
-            tour_date_count[tour_date] = tour_cards[card]
+            tour_date_count.append([tour_date, tour_cards[card]])
         else:
-            tour_date_count[tour_date] = 0
+            tour_date_count.append([tour_date, 0])
+
+        tour_date_count.sort(key=lambda x: x[0])
 
     pos = 0
     if avg:
-        ord_tour = sorted(tour_date_count.items())
-        avg_tour = {}
-        for i in ord_tour:
+        copy_list = copy.deepcopy(tour_date_count)
+        for date_num in tour_date_count:
             avg_val = []
             for j in xrange(pos, pos - considered_tours, -1):
                 if j >= 0:
-                    avg_val.append(ord_tour[j][1])
-            avg_tour[ord_tour[pos][0]] = (sum(avg_val) / float(len(avg_val)))
+                    avg_val.append(copy_list[j][1])
+            date_num[1] = (sum(avg_val) / float(len(avg_val)))
             pos += 1
-        return avg_tour
-    else:
-        return tour_date_count
+    elif time:
+        copy_list = copy.deepcopy(tour_date_count)
+        for date_num in tour_date_count:
+            lookback_list = []
+            lookback_list.append(date_num[1])
+            i = tour_date_count.index(date_num) - 1
+            weight = 1
+            gamma = discount_factor
+            while i >= 0 and (date_num[0] - copy_list[i][0]).days < considered_days:
+                lookback_list.append(gamma * copy_list[i][1])
+                weight = weight + gamma
+                gamma = gamma * discount_factor
+                i = i - 1
+            date_num[1] = (sum(lookback_list) / float(weight))
+
+    return tour_date_count
