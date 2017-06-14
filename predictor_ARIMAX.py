@@ -7,10 +7,10 @@ import pandas as pd
 import pyflux as pf
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
-set_dirs = ["KLD"]
+set_dirs = ["KLDH"]
 
-AR = 2
-MA = 5
+AR = 0
+MA = 3
 MSEs = {}
 
 base_path = "C:\\Users\\pitu\\Desktop\\PREDICTIONS\\"
@@ -24,7 +24,7 @@ for set_dir in set_dirs:
 
     price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
     with open("C:\\Users\\pitu\\Desktop\\PREDICTIONS\\" + set_dir + "\\"
-                      + "_prediction_analysis_AR " + str(AR) + "_MA" + str(MA) + ".txt", "w") as datafile:
+                      + "_prediction_analysis_AR " + str(AR) + "_MA" + str(MA) + "_US4.txt", "w") as datafile:
         for card_file in price_files:
 
             time_series = get_base_timeseries(set_dir, card_file)
@@ -36,14 +36,28 @@ for set_dir in set_dirs:
                 prices = [x[1] for x in timePriceList]
                 tours = [x[1] for x in standardizedTourCount]
 
+                """ create lagged usage timeseries """
+                tours1 = copy.deepcopy(tours)
+                del tours1[0]
+                tours1.append(tours1[-1])
+                tours2 = copy.deepcopy(tours1)
+                del tours2[0]
+                tours2.append(tours2[-1])
+                tours3 = copy.deepcopy(tours2)
+                del tours3[0]
+                tours3.append(tours3[-1])
+                tours4 = copy.deepcopy(tours3)
+                del tours4[0]
+                tours4.append(tours4[-1])
+
                 """ pandas DataFrame creation with our timeseries"""
-                data = {"dates":dates, "prices": prices, "usage":tours}
-                df = pd.DataFrame(data, columns=['dates', 'prices', 'usage'])
+                data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4}
+                df = pd.DataFrame(data, columns=['dates', 'prices',  'usage', 'usage1', 'usage2', 'usage3', 'usage4'])
                 df.index = df['dates']
                 del df['dates']
 
                 """ creazione modello ARIMAX"""
-                model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage', ar=AR, ma=MA)
+                model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + usage1 + usage2 + usage3 + usage4', ar=AR, ma=MA)
                 x = model.fit("MLE")
 
                 title = os.path.splitext(card_file)[0]
