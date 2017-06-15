@@ -30,7 +30,7 @@ def get_base_timeseries(set_dir, card_file):
     if cut_start:
         timePriceList = timePriceList[cut_size:]
 
-    """uso derivata dei prezzi invece che i prezzi"""
+    """uso derivata dei prezzi invece che i prezzi, derivata rispetto alla media degli ultimi deriv_avg_n valori"""
     if derivative:
         copy_list = copy.deepcopy(timePriceList)
         for i in xrange(len(timePriceList)):
@@ -56,6 +56,7 @@ def get_base_timeseries(set_dir, card_file):
     tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO)
 
     checkmax_list = [x[1] for x in tourDateCount]
+    """ valore di massimo dell'uso dei tornei, serve per creare soglia d'ingresso """
     max_val = max(checkmax_list)
 
     standardizedTourCount = []
@@ -65,15 +66,19 @@ def get_base_timeseries(set_dir, card_file):
         for datePrice in timePriceList:
             biggerThanAny = True
             for dateTour in tourDateCount:
+                """ nelle liste ordinate il primo valore di data di torneo segnala che bisogna prendere in considerazione il torneo immediatamente precedente
+                Es. dateprice = 4 gennaio -> scorro la lista dei tornei fino al dateTour 5 gennaio che è > datePrice ->
+                considero il dateTour immediatamente precedente, ossia il primo dateTour < datePrice (es. 2 gennaio) """
                 if datePrice[0] < dateTour[0]:
                     standardizedTourCount.append([datePrice[0], previous[1]])
                     biggerThanAny = False
                     break
                 previous = dateTour
+            """ se il prezzo ha una data posteriore a qualunque dato di torneo, replico l'ultimo dato e lo associo a questa data """
             if biggerThanAny:
                 standardizedTourCount.append([datePrice[0], tourDateCount[-1][1]])
 
-        """uso derivata ANCHE DEI TORNEI"""
+        """uso derivata ANCHE DEI TORNEI (vedi sopra sui prezzi per spiegazione)"""
         if derivative:
             copy_list = copy.deepcopy(standardizedTourCount)
             for i in xrange(len(standardizedTourCount)):

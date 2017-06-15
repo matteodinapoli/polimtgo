@@ -6,8 +6,10 @@ from os.path import isfile, join
 from TournamentReader import get_tournament_date
 import json
 
-base_path = "C:\Users\pitu\Desktop\Competitive"
+base_path = "C:\Users\pitu\Desktop\New"
 useless_path = "not_significant"
+if not os.path.exists(join(base_path, useless_path)):
+    os.makedirs(join(base_path, useless_path))
 
 
 tour_files = [f for f in listdir(base_path) if isfile(join(base_path, f))]

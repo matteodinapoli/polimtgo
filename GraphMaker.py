@@ -3,10 +3,11 @@ import plotly
 import plotly.graph_objs as go
 import datetime
 from os.path import isfile, join
-from pprint import pprint
 
 
 base_path = "C:\\Users\\pitu\\Desktop\\DATA\\"
+
+""" list of dates of Set Releases in milliseconds """
 releases = [(1485730800000, "AER release"), (1476050400000, "KLD release"), (1470002400000, "EMN release"), (1460930400000, "SOI release"), (1454281200000, "OGW release"),  (1444600800000, "BFZ release")]
 
 

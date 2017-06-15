@@ -7,8 +7,9 @@ from dateutil import parser
 from pprint import pprint
 import copy
 
-
+""" numero di tornei presi in considerazione per la media degli ultimi tornei"""
 considered_tours = 3
+""" orizzonte temporale preso in considerazione per la media pesata dei tornei in questo lasso di tempo """
 considered_days = 30
 discount_factor = 0.8
 
@@ -89,6 +90,7 @@ def build_tournament_history(card, avg, time, onlyMTGO):
         tour_date_count.sort(key=lambda x: x[0])
 
     pos = 0
+    """ considero la media degli ultimi #considered_tours# tornei """
     if avg:
         copy_list = copy.deepcopy(tour_date_count)
         for date_num in tour_date_count:
@@ -99,6 +101,8 @@ def build_tournament_history(card, avg, time, onlyMTGO):
             date_num[1] = (sum(avg_val) / float(len(avg_val)))
             pos += 1
     elif time:
+        """ costruisco una media pesata di tutti gli ultimi tornei presenti nell'arco di #considered_days, con
+             discount factor esponenziale gamma moltiplicato per i valori via via piu lontani """
         copy_list = copy.deepcopy(tour_date_count)
         for date_num in tour_date_count:
             lookback_list = []
