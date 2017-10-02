@@ -11,24 +11,23 @@ import math
 """ TODO:
  - risolvere la mancanza di tornei per i periodi carenti del 2015 (DTK) costruendo un crawler direttamente per il sito wizard 
  (su mTGtop8 sono presenti solo uno o due mazzi per quesi tornei)
- - normalizzare le timeseries con y tra 0 e 1 per avere paragoni dei coefficienti beta consistenti tra loro
  - provare a usare termini di lag usage a intervalli più ampii nella regression (t-5, t-10...)
- - pensare a ulteriori features come uscita standard e questione domanda/offerta bustine limited
 """
 
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 """ directory dei set dai quali prendere i dati dei prezzi, cambiare la lista per considerare diversi set al lancio """
-set_dirs = ["KLDH"]
+set_dirs = ["DTK"];
+
 
 """ numero di lags autoregressivi presi in considerazione """
-AR = 3
+AR = 1
 """ numero di moving averages prese in considerazione """
 MA = 3
-MSEs = {}
+
 
 base_path = "C:\\Users\\pitu\\Desktop\\PREDICTIONS\\"
-
+MSEs = {}
 
 for set_dir in set_dirs:
 
@@ -37,18 +36,27 @@ for set_dir in set_dirs:
     prices_path = "C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Standard\\" + set_dir
 
     price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
-    with open("C:\\Users\\pitu\\Desktop\\PREDICTIONS\\" + set_dir + "\\"
-                      + "_prediction_analysis_AR " + str(AR) + "_MA" + str(MA) + ".txt", "w") as datafile:
+    with open("C:\\Users\\pitu\\Desktop\\PREDICTIONS\\" + set_dir + "\\" + "_prediction_analysis_" + get_file_name(AR, MA) + ".txt", "w") as datafile:
+        if not os.path.exists(join(base_path, join(set_dir, get_file_name(AR, MA) ))):
+            os.makedirs(join(base_path, join(set_dir, get_file_name(AR, MA) )))
         for card_file in price_files:
 
-            time_series = get_base_timeseries(set_dir, card_file)
+            normalized = True
+            time_series = get_base_timeseries(set_dir, card_file, normalized)
             timePriceList = time_series[0]
             standardizedTourCount = time_series[1]
+            budgetCount = time_series[2]
+            limitedSupply = time_series[3]
+            standardExit = time_series[4]
+
             if (len(standardizedTourCount) > 0):
 
                 dates = [x[0] for x in timePriceList]
                 prices = [x[1] for x in timePriceList]
                 tours = [x[1] for x in standardizedTourCount]
+                budget = [x[1] for x in budgetCount]
+                packs = [x[1] for x in limitedSupply]
+                exit = [x[1] for x in standardExit]
 
                 """ negative trend feature (slowly decreasing exponential) """
                 trend = []
@@ -70,15 +78,19 @@ for set_dir in set_dirs:
                 tours4.append(tours4[-1])
 
                 """ pandas DataFrame creation with our timeseries"""
-                data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4, "trend":trend}
+                data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4,
+                        "budget":budget, "trend":trend, "exit":exit} #"packs":packs
 
                 """ CHANGE THIS LINE TO CHANGE THE DATAFRAME USED IN PREDICTION """
-                df = pd.DataFrame(data, columns=['dates', 'prices', 'usage'])# 'usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
+                df = pd.DataFrame(data, columns=['dates', 'prices', 'usage', 'budget', 'exit'])   #'packs', 'usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
                 df.index = df['dates']
                 del df['dates']
 
                 """ creazione modello ARIMAX ## CHANGE THE FORMULA FOR DIFFERENT PREDICTIONS """
-                model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage' , ar=AR, ma=MA)
+                if(max(budget) > 0):
+                    model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget + exit' , ar=AR, ma=MA)
+                else:
+                    model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + exit', ar=AR, ma=MA)
                 x = model.fit("MLE")
 
                 title = os.path.splitext(card_file)[0]
@@ -107,7 +119,7 @@ for set_dir in set_dirs:
                 datafile.write("MSE: ")
                 datafile.write(str(MSE) + "\n")
 
-                make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title, set_dir, MSE)
+                make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title, join(set_dir, get_file_name(AR, MA)), MSE)
 
         totalMSE = 0
         meanMSE = 0
@@ -121,8 +133,6 @@ for set_dir in set_dirs:
         datafile.write(str(totalMSE) + "\n")
         datafile.write("Mean MSE of set " + set_dir + "\n")
         datafile.write(str(meanMSE)+ "\n")
-
-
 
 
 

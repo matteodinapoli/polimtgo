@@ -5,13 +5,14 @@ import math
 from pprint import pprint
 from os import listdir
 from os.path import isfile, join
+from sklearn import preprocessing
 import os
 import copy
 
 
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
-set_dirs = ["TST"]
+set_dirs = ["SOI"]
 
 
 
@@ -29,7 +30,7 @@ for set_dir in set_dirs:
     price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
     for card_file in price_files:
 
-        time_series = get_base_timeseries(set_dir, card_file)
+        time_series = get_base_timeseries(set_dir, card_file, False)
         timePriceList = time_series[0]
         standardizedTourCount = time_series[1]
         if (len(standardizedTourCount) > 0):
@@ -41,8 +42,8 @@ for set_dir in set_dirs:
             autocorr_dict = {}
 
             prices = [x[1] for x in timePriceList]
-            prices_copy = copy.deepcopy(prices)
             tours = [x[1] for x in standardizedTourCount]
+            prices_copy = copy.deepcopy(prices)
 
             """calculate pearson correlation and prices autocorrelation at t0 """
             pearson_dict[0] = numpy.corrcoef(prices, tours)[0, 1]
@@ -75,7 +76,7 @@ for set_dir in set_dirs:
                     all_pearson_s10.append(pearson_dict[i + 1])
 
 
-            title = os.path.splitext(card_file)[0] + "_MTGO_30d8h_wAutoCorr_ddBoth" + str(deriv_avg_n)
+            title = os.path.splitext(card_file)[0] + "_MTGO_30d8h_MODERN"
             make_pearson_corr_graph(data, pearson_dict, autocorr_dict, datatitles, set_dir, title)
 
     all_pearson = [value for value in all_pearson if not math.isnan(value)]

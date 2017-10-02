@@ -41,6 +41,13 @@ def get_tournament_date(path):
     date_time = parser.parse(date[0:-1])
     return date_time
 
+def get_budget_date(path):
+    with open(path) as datafile:
+        raw_tour = json.load(datafile)
+    date = raw_tour["date"]
+    date_time = parser.parse(date)
+    return date_time
+
 
 def clean_prices_before_any_tournament (prices_dict, tour_dict):
     for datePrice in prices_dict.keys():
@@ -54,7 +61,8 @@ def build_tournament_history(card, avg, time, onlyMTGO):
     tfiles = []
 
     if onlyMTGO:
-        mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\Competitive_cleaned"
+        mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\MTGO_standard"
+        #mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\MTGO_modern"
         mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
         for league in mtgo_files:
             tfiles.append(join(mtgo_path, league))
@@ -77,11 +85,30 @@ def build_tournament_history(card, avg, time, onlyMTGO):
         for t in twos_files:
             tfiles.append(join(twos_path, t))
 
+    return build_history(tfiles, card, avg, time, False)
+
+
+
+def build_budget_history(card, avg, time):
+
+    tfiles = []
+    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\BUDGET_MAGIC"
+    mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
+    for league in mtgo_files:
+        tfiles.append(join(mtgo_path, league))
+    return build_history(tfiles, card, avg, time, True)
+
+
+
+def build_history(tfiles, card, avg, time, budget):
     tour_date_count = []
 
     for tournament in tfiles:
         tour_cards = get_tournament_card_count(tournament)
-        tour_date = get_tournament_date(tournament)
+        if budget:
+            tour_date = get_budget_date(tournament)
+        else:
+            tour_date = get_tournament_date(tournament)
         if card in tour_cards:
             tour_date_count.append([tour_date, tour_cards[card]])
         else:
