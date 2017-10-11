@@ -59,6 +59,8 @@ def get_base_timeseries(set_dir, card_file, normalized):
 
     """ tourDateCount: dizionario --> data torneo = numero di quella carta in top8 """
     tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO)
+    ptDateCount = build_pt_history(os.path.splitext(card_file)[0])
+
 
     checkmax_list = [x[1] for x in tourDateCount]
     """ valore di massimo dell'uso dei tornei, serve per creare soglia d'ingresso """
@@ -68,6 +70,8 @@ def get_base_timeseries(set_dir, card_file, normalized):
     standardizedBudgetCount = []
     limitedSupply = []
     standardExit = []
+    standardizedInstantCount = []
+    standardizedPtCount = []
 
     if len(tourDateCount) > 0 and max_val >= 1:
         """ costruisco standardizedTourCount, un dizionario in cui ad ogni giorno (date prese da quelle del dizionario dei prezzi,
@@ -89,24 +93,25 @@ def get_base_timeseries(set_dir, card_file, normalized):
 
         """uso derivata ANCHE DEI TORNEI (vedi sopra sui prezzi per spiegazione)"""
         if derivative:
-            copy_list = copy.deepcopy(standardizedTourCount)
-            for i in xrange(len(standardizedTourCount)):
-                counted = 0
-                avg = 0
-                for j in xrange(1, deriv_avg_n):
-                    if (i - j > 0):
-                        avg += copy_list[i - j][1]
-                        counted += 1
-                if counted > 0:
-                    avg = avg / counted
-                else:
-                    avg = copy_list[0][1]
-                delta = copy_list[i][1] - avg
-                standardizedTourCount[i][1] = delta
+            differentiate_timeseries(standardizedTourCount)
 
-        """ tourDateCount: dizionario --> data torneo = numero di quella carta in top8 """
+        usedDays = set()
+        for dateTour in standardizedTourCount:
+            has_the_day = False
+            for datePt in ptDateCount:
+                if (dateTour[0] - datePt[0]).days == 0:
+                    day = dateTour[0].replace(hour=0, minute=0, second=0, microsecond=0)
+                    if not day in usedDays:
+                        has_the_day = True
+                        standardizedPtCount.append([dateTour[0], datePt[1] - dateTour[1]])
+                        usedDays.add(day)
+                        break
+            if not has_the_day:
+                standardizedPtCount.append([dateTour[0], 0])
+        extend_timeseries_w_gamma(standardizedPtCount, 0.7)
+
+        """costruisco la time_serie dell'uso di ogni carta nei Budget Decks di MTGoldfish"""
         budgetDateCount = build_budget_history(os.path.splitext(card_file)[0], average, time)
-
         for datePrice in timePriceList:
             biggerThanAny = True
             for budgetD in budgetDateCount:
@@ -118,17 +123,31 @@ def get_base_timeseries(set_dir, card_file, normalized):
             if biggerThanAny:
                 standardizedBudgetCount.append([datePrice[0], budgetDateCount[-1][1]])
 
+        """ Codice per costruire come features i vari Instant, Against the odds e vari mazzi di MtgGoldfish
+            Cambiando il metodo build_instant_deck_history facendolo puntare alle varie cartelle di dati faccio calcolare una 
+            rubrica piuttosto che un'altra
+        InstantDateCount = build_instant_deck_history(os.path.splitext(card_file)[0], average, time)
+        for datePrice in timePriceList:
+            biggerThanAny = True
+            for InstantD in InstantDateCount:
+                if datePrice[0] < InstantD[0]:
+                    standardizedInstantCount.append([datePrice[0], previous[1]])
+                    biggerThanAny = False
+                    break
+                previous = InstantD
+            if biggerThanAny:
+                standardizedInstantCount.append([datePrice[0], InstantDateCount[-1][1]])
+        pprint(standardizedInstantCount)"""
+
         #fill_supply_feature(set_dir, limitedSupply, timePriceList)
-        fill_standard_exit(set_dir, standardExit, timePriceList)
+        #fill_standard_exit(set_dir, standardExit, timePriceList)
 
-        if normalized:
-            normalize_column(timePriceList)
-            normalize_column(standardizedTourCount)
-            normalize_column(standardizedBudgetCount)
-            #normalize_column(limitedSupply)
-            normalize_column(standardExit)
-
-    return [timePriceList, standardizedTourCount, standardizedBudgetCount, limitedSupply, standardExit]
+    time_series = [timePriceList, standardizedTourCount, standardizedBudgetCount, limitedSupply, standardExit, standardizedInstantCount, standardizedPtCount]
+    if normalized:
+        for serie in time_series:
+            if serie:
+                normalize_column(serie)
+    return time_series
 
 
 
@@ -152,8 +171,7 @@ def normalize_list(list):
 
 
 def get_file_name(AR, MA):
-    return  "AR" + str(AR) + "_MA" + str(MA)+ "_BUDGET_PACKS"
-
+    return  "AR" + str(AR) + "_MA" + str(MA)+ "_PTEXPECTATION"
 
 
 def fill_supply_feature(set_dir, limitedSupply, timePriceList):
@@ -220,4 +238,20 @@ def fill_standard_exit(set_dir, standardExit, timePriceList):
                 standardExit.append([datePrice[0], margin])
             else:
                 standardExit.append([datePrice[0], 0])
-    pprint(standardExit)
+
+
+def differentiate_timeseries(time_serie):
+    copy_list = copy.deepcopy(time_serie)
+    for i in xrange(len(time_serie)):
+        counted = 0
+        avg = 0
+        for j in xrange(1, deriv_avg_n):
+            if i - j > 0:
+                avg += copy_list[i - j][1]
+                counted += 1
+        if counted > 0:
+            avg = avg / counted
+        else:
+            avg = copy_list[0][1]
+        delta = copy_list[i][1] - avg
+        time_serie[i][1] = delta

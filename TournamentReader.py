@@ -89,10 +89,29 @@ def build_tournament_history(card, avg, time, onlyMTGO):
 
 
 
+def build_pt_history(card):
+
+    tfiles = []
+    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\PT"
+    mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
+    for league in mtgo_files:
+        tfiles.append(join(mtgo_path, league))
+    return build_history(tfiles, card, False, False, False)
+
+
 def build_budget_history(card, avg, time):
 
     tfiles = []
     mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\BUDGET_MAGIC"
+    mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
+    for league in mtgo_files:
+        tfiles.append(join(mtgo_path, league))
+    return build_history(tfiles, card, avg, time, True)
+
+def build_instant_deck_history(card, avg, time):
+
+    tfiles = []
+    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\MUCH_ABREW"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
@@ -130,18 +149,26 @@ def build_history(tfiles, card, avg, time, budget):
     elif time:
         """ costruisco una media pesata di tutti gli ultimi tornei presenti nell'arco di #considered_days, con
              discount factor esponenziale gamma moltiplicato per i valori via via piu lontani """
-        copy_list = copy.deepcopy(tour_date_count)
-        for date_num in tour_date_count:
-            lookback_list = []
-            lookback_list.append(date_num[1])
-            i = tour_date_count.index(date_num) - 1
-            weight = 1
-            gamma = discount_factor
-            while i >= 0 and (date_num[0] - copy_list[i][0]).days < considered_days:
-                lookback_list.append(gamma * copy_list[i][1])
-                weight = weight + gamma
-                gamma = gamma * discount_factor
-                i = i - 1
-            date_num[1] = (sum(lookback_list) / float(weight))
+        extend_timeseries_w_gamma(tour_date_count, discount_factor)
 
     return tour_date_count
+
+
+
+def extend_timeseries_w_gamma(timeseries, discount_factor):
+    copy_list = copy.deepcopy(timeseries)
+    for date_num in timeseries:
+        lookback_list = []
+        lookback_list.append(date_num[1])
+        i = timeseries.index(date_num) - 1
+        weight = 1
+        gamma = discount_factor
+        while i >= 0 and (date_num[0] - copy_list[i][0]).days < considered_days:
+            lookback_list.append(gamma * copy_list[i][1])
+            weight = weight + gamma
+            gamma = gamma * discount_factor
+            i = i - 1
+        res = (sum(lookback_list) / float(weight))
+        if abs(res) < 0.05:
+            res = 0
+        date_num[1] = res

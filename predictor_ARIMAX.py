@@ -17,7 +17,7 @@ import math
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 """ directory dei set dai quali prendere i dati dei prezzi, cambiare la lista per considerare diversi set al lancio """
-set_dirs = ["DTK"];
+set_dirs = ["EMN", "SOI"];
 
 
 """ numero di lags autoregressivi presi in considerazione """
@@ -48,91 +48,101 @@ for set_dir in set_dirs:
             budgetCount = time_series[2]
             limitedSupply = time_series[3]
             standardExit = time_series[4]
+            instantCount = time_series[5]
+            ptExpectation = time_series[6]
 
-            if (len(standardizedTourCount) > 0):
-
-                dates = [x[0] for x in timePriceList]
-                prices = [x[1] for x in timePriceList]
+            if len(standardizedTourCount) > 0:
                 tours = [x[1] for x in standardizedTourCount]
-                budget = [x[1] for x in budgetCount]
-                packs = [x[1] for x in limitedSupply]
-                exit = [x[1] for x in standardExit]
+                max_val = max(tours)
+                if max_val > 0:
 
-                """ negative trend feature (slowly decreasing exponential) """
-                trend = []
-                for i in xrange(len(prices)):
-                    trend.append(math.exp( -(i+365)/float(365) ))
+                    dates = [x[0] for x in timePriceList]
+                    prices = [x[1] for x in timePriceList]
+                    budget = [x[1] for x in budgetCount]
+                    packs = [x[1] for x in limitedSupply]
+                    exits = [x[1] for x in standardExit]
+                    instant = [x[1] for x in instantCount]
+                    ptExps = [x[1] for x in ptExpectation]
 
-                """ create lagged usage timeseries """
-                tours1 = copy.deepcopy(tours)
-                del tours1[0]
-                tours1.append(tours1[-1])
-                tours2 = copy.deepcopy(tours1)
-                del tours2[0]
-                tours2.append(tours2[-1])
-                tours3 = copy.deepcopy(tours2)
-                del tours3[0]
-                tours3.append(tours3[-1])
-                tours4 = copy.deepcopy(tours3)
-                del tours4[0]
-                tours4.append(tours4[-1])
+                    """ negative trend feature (slowly decreasing exponential) """
+                    trend = []
+                    for i in xrange(len(prices)):
+                        trend.append(math.exp( -(i+365)/float(365) ))
 
-                """ pandas DataFrame creation with our timeseries"""
-                data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4,
-                        "budget":budget, "trend":trend, "exit":exit} #"packs":packs
+                    """ create lagged usage timeseries """
+                    tours1 = copy.deepcopy(tours)
+                    del tours1[0]
+                    tours1.append(tours1[-1])
+                    tours2 = copy.deepcopy(tours1)
+                    del tours2[0]
+                    tours2.append(tours2[-1])
+                    tours3 = copy.deepcopy(tours2)
+                    del tours3[0]
+                    tours3.append(tours3[-1])
+                    tours4 = copy.deepcopy(tours3)
+                    del tours4[0]
+                    tours4.append(tours4[-1])
 
-                """ CHANGE THIS LINE TO CHANGE THE DATAFRAME USED IN PREDICTION """
-                df = pd.DataFrame(data, columns=['dates', 'prices', 'usage', 'budget', 'exit'])   #'packs', 'usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
-                df.index = df['dates']
-                del df['dates']
+                    """ pandas DataFrame creation with our timeseries"""
+                    data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4,
+                            "budget":budget, "ptExps": ptExps} #"packs":packs "trend":trend, "exit":exits,
 
-                """ creazione modello ARIMAX ## CHANGE THE FORMULA FOR DIFFERENT PREDICTIONS """
-                if(max(budget) > 0):
-                    model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget + exit' , ar=AR, ma=MA)
-                else:
-                    model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + exit', ar=AR, ma=MA)
-                x = model.fit("MLE")
+                    """ CHANGE THIS LINE TO CHANGE THE DATAFRAME USED IN PREDICTION """
+                    df = pd.DataFrame(data, columns=['dates', 'prices', 'usage', 'budget', 'ptExps'])   #'packs', 'exit', usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
+                    df.index = df['dates']
+                    del df['dates']
 
-                title = os.path.splitext(card_file)[0]
+                    """ creazione modello ARIMAX ## CHANGE THE FORMULA FOR DIFFERENT PREDICTIONS """
+                    if(max(budget) > 0 and max(ptExps) > 0):
+                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget + ptExps' , ar=AR, ma=MA)
+                    elif (max(budget) > 0):
+                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget', ar=AR, ma=MA)
+                    elif (max(ptExps) > 0):
+                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + ptExps', ar=AR, ma=MA)
+                    else:
+                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage', ar=AR, ma=MA)
+                    x = model.fit("MLE")
 
-                """ print to file analysis of created model"""
-                datafile.write("\n\n")
-                datafile.write(title)
-                datafile.write("\n")
-                for s in x.summary():
-                    datafile.write(str(s))
+                    title = os.path.splitext(card_file)[0]
 
-                """ predizione rolling-in sample dell'ultimo quarto di timeseries"""
-                n_prediction_samples = len(prices) / 4
-                predicted_df = model.predict_is(n_prediction_samples, False, "MLE")
+                    """ print to file analysis of created model"""
+                    datafile.write("\n\n")
+                    datafile.write(title)
+                    datafile.write("\n")
+                    for s in x.summary():
+                        datafile.write(str(s))
 
-                """ manda a plotly per disegnare grafico dell'ultimo quarto di timeseries real/predicted"""
-                prices = df['prices'].values.tolist()[- n_prediction_samples:]
-                predicted_prices = predicted_df['prices'].values.tolist()
+                    """ predizione rolling-in sample dell'ultimo quarto di timeseries"""
+                    n_prediction_samples = len(prices) / 4
+                    predicted_df = model.predict_is(n_prediction_samples, False, "MLE")
 
-                SSE = 0
-                for real, pred in zip(prices, predicted_prices):
-                    increment = (real - pred)**2
-                    SSE += (real - pred)**2
-                MSE = SSE/n_prediction_samples
-                MSEs[title] = MSE
-                datafile.write("MSE: ")
-                datafile.write(str(MSE) + "\n")
+                    """ manda a plotly per disegnare grafico dell'ultimo quarto di timeseries real/predicted"""
+                    prices = df['prices'].values.tolist()[- n_prediction_samples:]
+                    predicted_prices = predicted_df['prices'].values.tolist()
 
-                make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title, join(set_dir, get_file_name(AR, MA)), MSE)
+                    SSE = 0
+                    for real, pred in zip(prices, predicted_prices):
+                        increment = (real - pred)**2
+                        SSE += (real - pred)**2
+                    MSE = SSE/n_prediction_samples
+                    MSEs[title] = MSE
+                    datafile.write("MSE: ")
+                    datafile.write(str(MSE) + "\n")
 
-        totalMSE = 0
-        meanMSE = 0
-        for MSE in MSEs.values():
-            totalMSE += MSE
-        meanMSE = totalMSE/len(MSEs)
+                    make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title, join(set_dir, get_file_name(AR, MA)), MSE)
 
-        datafile.write("\n\n")
-        datafile.write("ARIMAX model with AR " + str(AR) + " and MA " + str(MA) + "\n")
-        datafile.write("Total MSE of set " + set_dir + "\n")
-        datafile.write(str(totalMSE) + "\n")
-        datafile.write("Mean MSE of set " + set_dir + "\n")
-        datafile.write(str(meanMSE)+ "\n")
+        if len(MSEs) > 0:
+            totalMSE = 0
+            meanMSE = 0
+            for MSE in MSEs.values():
+                totalMSE += MSE
+            meanMSE = totalMSE/len(MSEs)
+            datafile.write("\n\n")
+            datafile.write("ARIMAX model with AR " + str(AR) + " and MA " + str(MA) + "\n")
+            datafile.write("Total MSE of set " + set_dir + "\n")
+            datafile.write(str(totalMSE) + "\n")
+            datafile.write("Mean MSE of set " + set_dir + "\n")
+            datafile.write(str(meanMSE)+ "\n")
 
 
 
