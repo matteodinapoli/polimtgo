@@ -14,6 +14,11 @@ considered_days = 30
 discount_factor = 0.8
 
 
+
+def get_data_location():
+    return "C:\\Users\\pitu\\Desktop\\"
+
+
 def get_tournament_card_count(path):
     with open(path) as datafile:
         raw_tour = json.load(datafile)
@@ -61,20 +66,20 @@ def build_tournament_history(card, avg, time, onlyMTGO):
     tfiles = []
 
     if onlyMTGO:
-        mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\MTGO_standard"
-        #mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\MTGO_modern"
+        mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\MTGO_standard"
+        #mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\MTGO_modern"
         mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
         for league in mtgo_files:
             tfiles.append(join(mtgo_path, league))
 
     else:
-        tour_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\PT"
+        tour_path = get_data_location() + "DATA\\PRO_Tournaments\\PT"
         tour_files = [f for f in listdir(tour_path) if isfile(join(tour_path, f))]
 
-        gp_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\GP"
+        gp_path = get_data_location() + "DATA\\PRO_Tournaments\\GP"
         gp_files = [f for f in listdir(gp_path) if isfile(join(gp_path, f))]
 
-        twos_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\2stars"
+        twos_path = get_data_location() + "DATA\\PRO_Tournaments\\2stars"
         twos_files = [f for f in listdir(twos_path) if isfile(join(twos_path, f))]
 
 
@@ -89,10 +94,20 @@ def build_tournament_history(card, avg, time, onlyMTGO):
 
 
 
+def build_modern_history(card, avg, time):
+
+    tfiles = []
+    mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\MTGO_modern"
+    mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
+    for league in mtgo_files:
+        tfiles.append(join(mtgo_path, league))
+    return build_history(tfiles, card, avg, time, False)
+
+
 def build_pt_history(card):
 
     tfiles = []
-    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\PRO_Tournaments\\PT"
+    mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\PT"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
@@ -102,16 +117,16 @@ def build_pt_history(card):
 def build_budget_history(card, avg, time):
 
     tfiles = []
-    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\BUDGET_MAGIC"
+    mtgo_path = get_data_location() + "DATA\\BUDGET_MAGIC"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
     return build_history(tfiles, card, avg, time, True)
 
-def build_instant_deck_history(card, avg, time):
+def build_all_goldfish_history(card, avg, time):
 
     tfiles = []
-    mtgo_path = "C:\\Users\\pitu\\Desktop\\DATA\\MUCH_ABREW"
+    mtgo_path = get_data_location() + "DATA\\ALL_GOLDFISH"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))

@@ -3,10 +3,11 @@ import shutil
 from pprint import pprint
 from os import listdir
 from os.path import isfile, join
+from data_builder import get_data_location
 import json
 
 
-basepath = "C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Modern\\"
+basepath = get_data_location() + "DATA\\MTGOprices\\Modern\\"
 treshold = 0.3
 
 subdirs = next(os.walk(basepath))[1]

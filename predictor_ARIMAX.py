@@ -5,6 +5,7 @@ from os.path import isfile, join
 import os
 import pandas as pd
 import pyflux as pf
+import numpy as np
 import math
 
 
@@ -17,26 +18,94 @@ import math
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 """ directory dei set dai quali prendere i dati dei prezzi, cambiare la lista per considerare diversi set al lancio """
-set_dirs = ["EMN", "SOI"];
+set_dirs = ["AER", "KLD", "SOI", "EMN", "BFZ", "OGW"];
 
 
 """ numero di lags autoregressivi presi in considerazione """
 AR = 1
 """ numero di moving averages prese in considerazione """
 MA = 3
+""" numero di steps in avanti della predizione """
+steps = 1
+
+""" fitting in sample o unico a inizio predizione"""
+fit_always = False
 
 
-base_path = "C:\\Users\\pitu\\Desktop\\PREDICTIONS\\"
+base_path = get_data_location() + "PREDICTIONS\\"
 MSEs = {}
+
+
+def get_file_name(AR, MA):
+    return "NOREFIT_AR" + str(AR) + "_MA" + str(MA)+ "_FEATURE_SELECTION_W_INDEXS"
+
+
+def sequential_forward_feature_selection(df, prices):
+    features_raw = df.columns.values.tolist()
+    features_raw.remove('prices')
+
+    to_remove = []
+    for feat in features_raw:
+        if not df[feat].max() > 0:
+            to_remove.append(feat)
+    features = [x for x in features_raw if x not in to_remove]
+
+    minSSE = 0
+    formula = 'prices ~ 1'
+    improving = True
+
+    """only autoregressive model evaluation"""
+    model = pf.ARIMAX(data=df, formula=formula, ar=AR, ma=MA)
+    model.fit("MLE")
+    n_prediction_samples = len(prices) / 4
+    predicted_df = model.predict_is(n_prediction_samples, not fit_always, "MLE")
+    real_prices = df['prices'].values.tolist()[- n_prediction_samples:]
+    predicted_prices = predicted_df['prices'].values.tolist()
+    for real, pred in zip(real_prices, predicted_prices):
+        minSSE += (real - pred) ** 2
+
+    while improving:
+        improving = False
+        for feat in features:
+            formula_try = formula + " + " + feat
+            model = pf.ARIMAX(data=df, formula=formula_try, ar=AR, ma=MA)
+            model.fit("MLE")
+            n_prediction_samples = len(prices) / 4
+            predicted_df = model.predict_is(n_prediction_samples, not fit_always, "MLE")
+            real_prices = df['prices'].values.tolist()[- n_prediction_samples:]
+            predicted_prices = predicted_df['prices'].values.tolist()
+            SSE = 0
+            for real, pred in zip(real_prices, predicted_prices):
+                SSE += (real - pred) ** 2
+            pprint("SSE precedente: " + str(minSSE))
+            pprint("SSE Modello con formula " + str(formula_try) + ": " + str(SSE))
+
+            if SSE < minSSE:
+                minSSE = SSE
+                pprint("Procedo con feature successiva, includendo " + feat)
+                formula = formula_try
+                features.remove(feat)
+                improving = True
+                break
+
+        if not improving:
+            pprint("Nessun miglioramento, interrompo procedura")
+
+    return formula
+
 
 for set_dir in set_dirs:
 
     if not os.path.exists(set_dir):
         os.makedirs(set_dir)
-    prices_path = "C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Standard\\" + set_dir
+    prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
 
     price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
-    with open("C:\\Users\\pitu\\Desktop\\PREDICTIONS\\" + set_dir + "\\" + "_prediction_analysis_" + get_file_name(AR, MA) + ".txt", "w") as datafile:
+
+    averages_residuals = []
+    variances_residuals = []
+
+    with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "_prediction_analysis_" + get_file_name(AR, MA) + ".txt", "w") as datafile:
         if not os.path.exists(join(base_path, join(set_dir, get_file_name(AR, MA) ))):
             os.makedirs(join(base_path, join(set_dir, get_file_name(AR, MA) )))
         for card_file in price_files:
@@ -46,10 +115,13 @@ for set_dir in set_dirs:
             timePriceList = time_series[0]
             standardizedTourCount = time_series[1]
             budgetCount = time_series[2]
-            limitedSupply = time_series[3]
-            standardExit = time_series[4]
-            instantCount = time_series[5]
+            limitedSupply = time_series[3]  #non usato
+            standardExit = time_series[4]   #non usato
+            allGoldfishCount = time_series[5]
             ptExpectation = time_series[6]
+            modernTourCount = time_series[7]
+            MACD_index = time_series[8]
+            RSI_index = time_series[9]
 
             if len(standardizedTourCount) > 0:
                 tours = [x[1] for x in standardizedTourCount]
@@ -61,13 +133,11 @@ for set_dir in set_dirs:
                     budget = [x[1] for x in budgetCount]
                     packs = [x[1] for x in limitedSupply]
                     exits = [x[1] for x in standardExit]
-                    instant = [x[1] for x in instantCount]
+                    allGoldfish = [x[1] for x in allGoldfishCount]
                     ptExps = [x[1] for x in ptExpectation]
-
-                    """ negative trend feature (slowly decreasing exponential) """
-                    trend = []
-                    for i in xrange(len(prices)):
-                        trend.append(math.exp( -(i+365)/float(365) ))
+                    modern = [x[1] for x in modernTourCount]
+                    MACD = [x[1] for x in MACD_index]
+                    RSI = [x[1] for x in RSI_index]
 
                     """ create lagged usage timeseries """
                     tours1 = copy.deepcopy(tours)
@@ -84,24 +154,26 @@ for set_dir in set_dirs:
                     tours4.append(tours4[-1])
 
                     """ pandas DataFrame creation with our timeseries"""
-                    data = {"dates":dates, "prices": prices, "usage":tours, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4,
-                            "budget":budget, "ptExps": ptExps} #"packs":packs "trend":trend, "exit":exits,
+                    data = {"dates":dates, "prices": prices, "usage":tours,
+                            "budget":budget, "allG":allGoldfish, "ptExps": ptExps, "modern":modern, "MACD":MACD, "RSI":RSI} #"packs":packs "trend":trend, "exit":exits, "usage1":tours1, "usage2":tours2, "usage3":tours3, "usage4":tours4
 
                     """ CHANGE THIS LINE TO CHANGE THE DATAFRAME USED IN PREDICTION """
-                    df = pd.DataFrame(data, columns=['dates', 'prices', 'usage', 'budget', 'ptExps'])   #'packs', 'exit', usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
+                    df = pd.DataFrame(data, columns=['dates', 'prices', 'usage', 'budget', 'allG', 'ptExps', 'modern', 'MACD', 'RSI'])   #'packs', 'exit', usage1', 'usage2', 'usage3', 'usage4'])#, 'trend'])
                     df.index = df['dates']
                     del df['dates']
 
                     """ creazione modello ARIMAX ## CHANGE THE FORMULA FOR DIFFERENT PREDICTIONS """
-                    if(max(budget) > 0 and max(ptExps) > 0):
-                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget + ptExps' , ar=AR, ma=MA)
-                    elif (max(budget) > 0):
-                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + budget', ar=AR, ma=MA)
-                    elif (max(ptExps) > 0):
-                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage + ptExps', ar=AR, ma=MA)
+                    if max(budget) > 0:
+                        formula = 'prices ~ 1 + usage + budget + MACD + RSI'
                     else:
-                        model = pf.ARIMAX(data=df, formula='prices ~ 1 + usage', ar=AR, ma=MA)
+                        formula = 'prices ~ 1 + usage + MACD + RSI'
+
+                    formula = sequential_forward_feature_selection(df, prices)
+                    #formula = 'prices ~ 1'
+
+                    model = pf.ARIMAX(data=df, formula=formula, ar=AR, ma=MA)
                     x = model.fit("MLE")
+                    saved_lvs = model.latent_variables
 
                     title = os.path.splitext(card_file)[0]
 
@@ -112,9 +184,32 @@ for set_dir in set_dirs:
                     for s in x.summary():
                         datafile.write(str(s))
 
-                    """ predizione rolling-in sample dell'ultimo quarto di timeseries"""
-                    n_prediction_samples = len(prices) / 4
-                    predicted_df = model.predict_is(n_prediction_samples, False, "MLE")
+                    if steps > 1:
+                        """ predizione a steps dell'ultimo quarto di timeseries"""
+                        n_prediction_samples = len(prices) / 4
+                        to_predict = n_prediction_samples
+                        first_it = True
+                        while to_predict > steps:
+                            data1 = df.iloc[:-to_predict, :]
+                            data2 = df.iloc[-to_predict:, :]
+                            if fit_always:
+                                model = pf.ARIMAX(data=data1, formula=formula, ar=AR, ma=MA)
+                                x = model.fit("MLE")
+                            else:
+                                model = pf.ARIMAX(data=data1, formula=formula, ar=AR, ma=MA)
+                                model.latent_variables = saved_lvs
+                            if first_it:
+                                predicted_df = model.predict(steps, oos_data=data2, intervals=False)
+                                first_it = False
+                            else:
+                                predicted_df = pd.concat(
+                                    [predicted_df, model.predict(h=steps, oos_data=data2, intervals=False)])
+                            to_predict = to_predict - steps
+
+                    else:
+                        """ predizione rolling-in sample dell'ultimo quarto di timeseries"""
+                        n_prediction_samples = len(prices) / 4
+                        predicted_df = model.predict_is(n_prediction_samples, not fit_always, "MLE")
 
                     """ manda a plotly per disegnare grafico dell'ultimo quarto di timeseries real/predicted"""
                     prices = df['prices'].values.tolist()[- n_prediction_samples:]
@@ -128,6 +223,17 @@ for set_dir in set_dirs:
                     MSEs[title] = MSE
                     datafile.write("MSE: ")
                     datafile.write(str(MSE) + "\n")
+
+                    """analisi residui"""
+                    delta_pred = [real - pred for real, pred in zip(prices, predicted_prices)]
+                    avg_residuals = sum(delta_pred)/float(len(delta_pred))
+                    averages_residuals.append(avg_residuals)
+                    var_residuals = np.var(delta_pred)
+                    variances_residuals.append(var_residuals)
+                    datafile.write("Average Residuals: ")
+                    datafile.write(str(avg_residuals) + "\n")
+                    datafile.write("Variance Residuals: ")
+                    datafile.write(str(var_residuals) + "\n")
 
                     make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title, join(set_dir, get_file_name(AR, MA)), MSE)
 
@@ -143,6 +249,20 @@ for set_dir in set_dirs:
             datafile.write(str(totalMSE) + "\n")
             datafile.write("Mean MSE of set " + set_dir + "\n")
             datafile.write(str(meanMSE)+ "\n")
+        if len(averages_residuals) > 0 and len(variances_residuals) > 0:
+            total_avgs = sum(averages_residuals)
+            datafile.write("Sum of Residuals Averages of set " + set_dir + "\n")
+            datafile.write(str(total_avgs) + "\n")
+            mean_avgs = total_avgs/float(len(averages_residuals))
+            datafile.write("Average of Residuals Averages of set " + set_dir + "\n")
+            datafile.write(str(mean_avgs) + "\n")
+            total_vars = sum(variances_residuals)
+            datafile.write("Sum of Residuals Variances of set " + set_dir + "\n")
+            datafile.write(str(total_vars) + "\n")
+            mean_vars = total_vars / float(len(variances_residuals))
+            datafile.write("Average of Residuals Variances of set " + set_dir + "\n")
+            datafile.write(str(mean_vars) + "\n")
+
 
 
 

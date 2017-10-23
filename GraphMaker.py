@@ -3,9 +3,10 @@ import plotly
 import plotly.graph_objs as go
 import datetime
 from os.path import isfile, join
+from TournamentReader import get_data_location
 
 
-base_path = "C:\\Users\\pitu\\Desktop\\DATA\\"
+base_path = get_data_location() + "DATA\\"
 
 """ list of dates of Set Releases in milliseconds """
 releases = [(1485730800000, "AER release"), (1476050400000, "KLD release"), (1470002400000, "EMN release"), (1460930400000, "SOI release"), (1454281200000, "OGW release"),  (1444600800000, "BFZ release")]
@@ -234,7 +235,7 @@ def make_pearson_histogram(plist, plist2, plist5, plist10, set_dir):
 
 
 def make_prediction_graph(dates, prices, predicted_prices, title, set_dir, MSE):
-    base_path = "C:\\Users\\pitu\\Desktop\\PREDICTIONS\\"
+    base_path = get_data_location() + "PREDICTIONS\\"
     data_comp = []
     annotations = [(dict(xref='paper', yref='paper', x=0.95, y=0.85,
                          xanchor='right', yanchor='bottom',

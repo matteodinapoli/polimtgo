@@ -12,7 +12,7 @@ import copy
 
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
-set_dirs = ["SOI"]
+set_dirs = ["TST"]
 
 
 
@@ -20,7 +20,7 @@ for set_dir in set_dirs:
 
     if not os.path.exists(set_dir):
         os.makedirs(set_dir)
-    prices_path = "C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Standard\\" + set_dir
+    prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
 
     all_pearson = []
     all_pearson_s2 = []

@@ -25,9 +25,11 @@ card_count = {"AER": 184, "KLD": 264, "EMN": 205, "SOI": 297, "OGW": 184,  "BFZ"
 standard_exit = {"DTK": 1476050400000}
 
 
+
+
 def get_base_timeseries(set_dir, card_file, normalized):
 
-    with open("C:\\Users\\pitu\\Desktop\\DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
+    with open(get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
         rawjson = json.load(datafile)
     timePriceList = rawjson["data"]
 
@@ -70,8 +72,11 @@ def get_base_timeseries(set_dir, card_file, normalized):
     standardizedBudgetCount = []
     limitedSupply = []
     standardExit = []
-    standardizedInstantCount = []
+    standardizedAllGoldfishCount = []
     standardizedPtCount = []
+    standardizedModernCount = []
+    MACD_index = []
+    RSI_index = []
 
     if len(tourDateCount) > 0 and max_val >= 1:
         """ costruisco standardizedTourCount, un dizionario in cui ad ogni giorno (date prese da quelle del dizionario dei prezzi,
@@ -123,31 +128,94 @@ def get_base_timeseries(set_dir, card_file, normalized):
             if biggerThanAny:
                 standardizedBudgetCount.append([datePrice[0], budgetDateCount[-1][1]])
 
-        """ Codice per costruire come features i vari Instant, Against the odds e vari mazzi di MtgGoldfish
-            Cambiando il metodo build_instant_deck_history facendolo puntare alle varie cartelle di dati faccio calcolare una 
-            rubrica piuttosto che un'altra
-        InstantDateCount = build_instant_deck_history(os.path.splitext(card_file)[0], average, time)
+        """costruisco la time_serie dell'uso di ogni carta in tutte le altre rubriche di MTGoldfish"""
+        AllGoldfishDateCount = build_all_goldfish_history(os.path.splitext(card_file)[0], average, time)
         for datePrice in timePriceList:
             biggerThanAny = True
-            for InstantD in InstantDateCount:
-                if datePrice[0] < InstantD[0]:
-                    standardizedInstantCount.append([datePrice[0], previous[1]])
+            for allGoldD in AllGoldfishDateCount:
+                if datePrice[0] < allGoldD[0]:
+                    standardizedAllGoldfishCount.append([datePrice[0], previous[1]])
                     biggerThanAny = False
                     break
-                previous = InstantD
+                previous = allGoldD
             if biggerThanAny:
-                standardizedInstantCount.append([datePrice[0], InstantDateCount[-1][1]])
-        pprint(standardizedInstantCount)"""
+                standardizedAllGoldfishCount.append([datePrice[0], AllGoldfishDateCount[-1][1]])
+
+        """costruisco la time_serie dell'uso di ogni carta nei tornei online Modern"""
+        modernCount = build_modern_history(os.path.splitext(card_file)[0], average, time)
+        for datePrice in timePriceList:
+            biggerThanAny = True
+            for modernD in modernCount:
+                if datePrice[0] < modernD[0]:
+                    standardizedModernCount.append([datePrice[0], previous[1]])
+                    biggerThanAny = False
+                    break
+                previous = modernD
+            if biggerThanAny:
+                standardizedModernCount.append([datePrice[0], standardizedModernCount[-1][1]])
 
         #fill_supply_feature(set_dir, limitedSupply, timePriceList)
         #fill_standard_exit(set_dir, standardExit, timePriceList)
 
-    time_series = [timePriceList, standardizedTourCount, standardizedBudgetCount, limitedSupply, standardExit, standardizedInstantCount, standardizedPtCount]
+        MACD_index = build_MACD_index(timePriceList)
+        RSI_index = build_RSI_index(timePriceList)
+
+    time_series = [timePriceList, standardizedTourCount, standardizedBudgetCount, limitedSupply, standardExit,
+                   standardizedAllGoldfishCount, standardizedPtCount, standardizedModernCount, MACD_index, RSI_index]
+
     if normalized:
         for serie in time_series:
             if serie:
                 normalize_column(serie)
     return time_series
+
+
+
+def build_RSI_index(timePriceList, periods=14):
+    RSI_ts = []
+    for index in xrange(len(timePriceList)):
+        gains = []
+        losses = []
+        for i in xrange(periods):
+            if index - (i+1) >= 0:
+                delta = timePriceList[index - i][1] - timePriceList[index - i - 1][1]
+                if delta > 0:
+                    gains.append(delta)
+                elif delta < 0:
+                    losses.append(abs(delta))
+        RSI = 0
+        if len(gains) > 0 and len(losses) > 0:
+            RSI_up = sum(gains)/float(len(gains))
+            RSI_down = sum(losses)/float(len(losses))
+            if RSI_down != 0:
+                RSI = 100 - 100/(1 + RSI_up/RSI_down)
+        RSI_ts.append([timePriceList[index][0],RSI])
+    return RSI_ts
+
+
+
+def build_MACD_index(timePriceList, short_period=12, long_period=26, signal_period=9):
+    ma_short = [x[1] for x in build_exponential_moving_average(timePriceList, short_period)]
+    ma_long = [x[1] for x in build_exponential_moving_average(timePriceList, long_period)]
+    signal_line_p = [s - l for s, l in zip(ma_short, ma_long)]
+    signal_line = [[timePriceList[i][0], signal_line_p[i]] for i in xrange(len(timePriceList))]
+    ma_signal = build_exponential_moving_average(signal_line, signal_period)
+    return ma_signal
+
+
+def build_exponential_moving_average(prices, periods):
+    ma_prices = []
+    for index in xrange(len(prices)):
+        weight = 0
+        elem = []
+        for i in xrange(periods):
+            if index - i >= 0:
+                coeff = 2/float(i+2)
+                elem.append(coeff*prices[index - i][1])
+                weight = weight + coeff
+        res = (sum(elem) / float(weight))
+        ma_prices.append([prices[index][0], res])
+    return ma_prices
 
 
 
@@ -169,9 +237,6 @@ def normalize_list(list):
         list = [(i - minval) / (maxval - minval) for i in list_copy]
     return list
 
-
-def get_file_name(AR, MA):
-    return  "AR" + str(AR) + "_MA" + str(MA)+ "_PTEXPECTATION"
 
 
 def fill_supply_feature(set_dir, limitedSupply, timePriceList):
@@ -255,3 +320,6 @@ def differentiate_timeseries(time_serie):
             avg = copy_list[0][1]
         delta = copy_list[i][1] - avg
         time_serie[i][1] = delta
+
+
+
