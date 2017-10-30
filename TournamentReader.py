@@ -4,6 +4,7 @@ import operator
 from os import listdir
 from os.path import isfile, join
 from dateutil import parser
+import datetime
 from pprint import pprint
 import copy
 
@@ -12,6 +13,8 @@ considered_tours = 3
 """ orizzonte temporale preso in considerazione per la media pesata dei tornei in questo lasso di tempo """
 considered_days = 30
 discount_factor = 0.8
+
+tour_date_count_map = {}
 
 
 
@@ -61,7 +64,7 @@ def clean_prices_before_any_tournament (prices_dict, tour_dict):
             tour_dict[datePrice] = 0
 
 
-def build_tournament_history(card, avg, time, onlyMTGO):
+def build_tournament_history(card, avg, time, onlyMTGO, first_price_date):
 
     tfiles = []
 
@@ -90,81 +93,88 @@ def build_tournament_history(card, avg, time, onlyMTGO):
         for t in twos_files:
             tfiles.append(join(twos_path, t))
 
-    return build_history(tfiles, card, avg, time, False)
+    return build_history(tfiles, card, avg, time, False, "usage", first_price_date)
 
 
 
-def build_modern_history(card, avg, time):
+def build_modern_history(card, avg, time, first_price_date):
 
     tfiles = []
     mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\MTGO_modern"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
-    return build_history(tfiles, card, avg, time, False)
+    return build_history(tfiles, card, avg, time, False, "modern", first_price_date)
 
 
-def build_pt_history(card):
+def build_pt_history(card, first_price_date):
 
     tfiles = []
     mtgo_path = get_data_location() + "DATA\\PRO_Tournaments\\PT"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
-    return build_history(tfiles, card, False, False, False)
+    return build_history(tfiles, card, False, False, False, "ptExps", first_price_date)
 
 
-def build_budget_history(card, avg, time):
+def build_budget_history(card, avg, time, first_price_date):
 
     tfiles = []
     mtgo_path = get_data_location() + "DATA\\BUDGET_MAGIC"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
-    return build_history(tfiles, card, avg, time, True)
+    return build_history(tfiles, card, avg, time, True, "budget", first_price_date)
 
-def build_all_goldfish_history(card, avg, time):
+def build_all_goldfish_history(card, avg, time, first_price_date):
 
     tfiles = []
     mtgo_path = get_data_location() + "DATA\\ALL_GOLDFISH"
     mtgo_files = [f for f in listdir(mtgo_path) if isfile(join(mtgo_path, f))]
     for league in mtgo_files:
         tfiles.append(join(mtgo_path, league))
-    return build_history(tfiles, card, avg, time, True)
+    return build_history(tfiles, card, avg, time, True, "allG", first_price_date)
 
 
 
-def build_history(tfiles, card, avg, time, budget):
+def build_history(tfiles, card, avg, time, budget, kind, first_price_date):
     tour_date_count = []
 
-    for tournament in tfiles:
-        tour_cards = get_tournament_card_count(tournament)
-        if budget:
-            tour_date = get_budget_date(tournament)
-        else:
-            tour_date = get_tournament_date(tournament)
-        if card in tour_cards:
-            tour_date_count.append([tour_date, tour_cards[card]])
-        else:
-            tour_date_count.append([tour_date, 0])
+    if kind not in tour_date_count_map:
+        tour_date_count_map[kind] = {}
+    if card in tour_date_count_map[kind]:
+        tour_date_count = tour_date_count_map[kind][card]
+    else:
+        for tournament in tfiles:
+            if budget:
+                tour_date = get_budget_date(tournament)
+            else:
+                tour_date = get_tournament_date(tournament)
+            if tour_date > first_price_date:
+                tour_cards = get_tournament_card_count(tournament)
+                if card in tour_cards:
+                    tour_date_count.append([tour_date, tour_cards[card]])
+                else:
+                    tour_date_count.append([tour_date, 0])
 
         tour_date_count.sort(key=lambda x: x[0])
+        pos = 0
+        """ considero la media degli ultimi #considered_tours# tornei """
+        if avg:
+            copy_list = copy.deepcopy(tour_date_count)
+            for date_num in tour_date_count:
+                avg_val = []
+                for j in xrange(pos, pos - considered_tours, -1):
+                    if j >= 0:
+                        avg_val.append(copy_list[j][1])
+                date_num[1] = (sum(avg_val) / float(len(avg_val)))
+                pos += 1
+        elif time:
+            """ costruisco una media pesata di tutti gli ultimi tornei presenti nell'arco di #considered_days, con
+                 discount factor esponenziale gamma moltiplicato per i valori via via piu lontani """
+            extend_timeseries_w_gamma(tour_date_count, discount_factor)
 
-    pos = 0
-    """ considero la media degli ultimi #considered_tours# tornei """
-    if avg:
-        copy_list = copy.deepcopy(tour_date_count)
-        for date_num in tour_date_count:
-            avg_val = []
-            for j in xrange(pos, pos - considered_tours, -1):
-                if j >= 0:
-                    avg_val.append(copy_list[j][1])
-            date_num[1] = (sum(avg_val) / float(len(avg_val)))
-            pos += 1
-    elif time:
-        """ costruisco una media pesata di tutti gli ultimi tornei presenti nell'arco di #considered_days, con
-             discount factor esponenziale gamma moltiplicato per i valori via via piu lontani """
-        extend_timeseries_w_gamma(tour_date_count, discount_factor)
+        tour_date_count_map[kind][card] = tour_date_count
 
     return tour_date_count
 

@@ -27,7 +27,7 @@ standard_exit = {"DTK": 1476050400000}
 
 
 
-def get_base_timeseries(set_dir, card_file, normalized):
+def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
 
     with open(get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
         rawjson = json.load(datafile)
@@ -54,15 +54,27 @@ def get_base_timeseries(set_dir, card_file, normalized):
             delta = copy_list[i][1] - avg
             timePriceList[i][1] = delta
 
-
     """uniformo le date in millisec del dataset dei prezzi a oggetti py datetime"""
+    closer_future_date_data = [datetime.datetime.now(), -1]
     for tupla in timePriceList:
         tupla[0] = datetime.datetime.fromtimestamp(tupla[0]/1000.0)
+        if abs(tupla[0] - up_to_date) < abs(closer_future_date_data[0] - up_to_date) \
+                and tupla[0] - up_to_date > datetime.timedelta(0):
+            closer_future_date_data = tupla
+
+    """ creo uno starting point per i tornei 15 giorni prima del primo prezzo considerato """
+    first_price_date = timePriceList[0][0]
+    first_price_date -= datetime.timedelta(days=15)
+    """ remove from list of prices all the prices posterior to certain date [FOR SIMULATION]"""
+    timePriceList = [x for x in timePriceList if x[0] < up_to_date]
+    """ add price of next time instant wrt simulation start to build exogenous variables for prediciton """
+    if closer_future_date_data[1] > -1 and len(timePriceList) > 0:
+        timePriceList.append(closer_future_date_data)
+
 
     """ tourDateCount: dizionario --> data torneo = numero di quella carta in top8 """
-    tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO)
-    ptDateCount = build_pt_history(os.path.splitext(card_file)[0])
-
+    tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO, first_price_date)
+    ptDateCount = build_pt_history(os.path.splitext(card_file)[0], first_price_date)
 
     checkmax_list = [x[1] for x in tourDateCount]
     """ valore di massimo dell'uso dei tornei, serve per creare soglia d'ingresso """
@@ -83,6 +95,7 @@ def get_base_timeseries(set_dir, card_file, normalized):
         aggiornato giorno per giorno) associo l'uso di quella carta nel torneo più recente """
         for datePrice in timePriceList:
             biggerThanAny = True
+            previous = (datePrice[0], 0)
             for budgetD in tourDateCount:
                 """ nelle liste ordinate il primo valore di data di torneo segnala che bisogna prendere in considerazione il torneo immediatamente precedente
                 Es. dateprice = 4 gennaio -> scorro la lista dei tornei fino al dateTour 5 gennaio che è > datePrice ->
@@ -116,7 +129,7 @@ def get_base_timeseries(set_dir, card_file, normalized):
         extend_timeseries_w_gamma(standardizedPtCount, 0.7)
 
         """costruisco la time_serie dell'uso di ogni carta nei Budget Decks di MTGoldfish"""
-        budgetDateCount = build_budget_history(os.path.splitext(card_file)[0], average, time)
+        budgetDateCount = build_budget_history(os.path.splitext(card_file)[0], average, time, first_price_date)
         for datePrice in timePriceList:
             biggerThanAny = True
             for budgetD in budgetDateCount:
@@ -129,7 +142,7 @@ def get_base_timeseries(set_dir, card_file, normalized):
                 standardizedBudgetCount.append([datePrice[0], budgetDateCount[-1][1]])
 
         """costruisco la time_serie dell'uso di ogni carta in tutte le altre rubriche di MTGoldfish"""
-        AllGoldfishDateCount = build_all_goldfish_history(os.path.splitext(card_file)[0], average, time)
+        AllGoldfishDateCount = build_all_goldfish_history(os.path.splitext(card_file)[0], average, time, first_price_date)
         for datePrice in timePriceList:
             biggerThanAny = True
             for allGoldD in AllGoldfishDateCount:
@@ -142,7 +155,7 @@ def get_base_timeseries(set_dir, card_file, normalized):
                 standardizedAllGoldfishCount.append([datePrice[0], AllGoldfishDateCount[-1][1]])
 
         """costruisco la time_serie dell'uso di ogni carta nei tornei online Modern"""
-        modernCount = build_modern_history(os.path.splitext(card_file)[0], average, time)
+        modernCount = build_modern_history(os.path.splitext(card_file)[0], average, time, first_price_date)
         for datePrice in timePriceList:
             biggerThanAny = True
             for modernD in modernCount:
@@ -323,3 +336,10 @@ def differentiate_timeseries(time_serie):
 
 
 
+
+set_dir = "TST"
+
+prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
+price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
+for card_file in price_files:
+    get_base_timeseries("TST", card_file, datetime.datetime.now(), False)
