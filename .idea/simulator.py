@@ -13,7 +13,7 @@ import bisect
 start_double = "2017-01-11 18:30:55"
 double_date = datetime.datetime.strptime(start_double, "%Y-%m-%d %H:%M:%S")
 
-set_dirs = ["SOI", "EMN", "OGW", "BFZ"];
+set_dirs = ["SOI", "EMN", "OGW", "BFZ", "KLD"];
 #set_dirs = ["TST"]
 
 """ DATA STRUCTURE """
@@ -21,12 +21,12 @@ set_dirs = ["SOI", "EMN", "OGW", "BFZ"];
 data = {}
 
 """ start date of simulation """
-start = "2016-10-01 20:30:55"
+start = "2017-02-01 20:30:55"
 now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
 budget = 200
 max_card_pieces = 20
 owned_cards = {}
-simulation_steps = 30
+simulation_steps = 60
 
 
 def find_current_time_key(dict, time):
@@ -83,11 +83,9 @@ def build_investment_map():
                 if os.path.splitext(card_file)[0] in data:
                     pprint("ATTENZIONE: PREDICTION DI " + str(card_file) + " NON HA ELABORATO UN RISULTATO\n")
                     del data[os.path.splitext(card_file)[0]]
-        pprint(data)
 
 
 def fill_investment_portfolio(margin_list, now_date):
-    pprint(margin_list)
     for margin_tupla in margin_list:
 
         card_name = margin_tupla[0]
@@ -121,6 +119,7 @@ def manage_owned_cards(margin_list, now_date):
 def sell_all_owned_cards():
     for card_name, quantity in owned_cards.items():
         card_map = data[card_name]
+        current_key = find_current_time_key(card_map[0], now_date)
         today_sell_price = card_map[0][current_key]
         sell_cards(card_name, today_sell_price)
 
