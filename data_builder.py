@@ -29,18 +29,28 @@ standard_exit = {"DTK": 1476050400000}
 
 def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
 
+    standardizedTourCount = []
+    standardizedBudgetCount = []
+    limitedSupply = []
+    standardExit = []
+    standardizedAllGoldfishCount = []
+    standardizedPtCount = []
+    standardizedModernCount = []
+    MACD_index = []
+    RSI_index = []
+
     with open(get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
         rawjson = json.load(datafile)
-    timePriceList = rawjson["data"]
+    timePriceList_raw = rawjson["data"]
 
     """remove prices of the first 15 days due to the high frequency"""
     if cut_start:
-        timePriceList = timePriceList[cut_size:]
+        timePriceList_raw = timePriceList_raw[cut_size:]
 
     """uso derivata dei prezzi invece che i prezzi, derivata rispetto alla media degli ultimi deriv_avg_n valori"""
     if derivative:
-        copy_list = copy.deepcopy(timePriceList)
-        for i in xrange(len(timePriceList)):
+        copy_list = copy.deepcopy(timePriceList_raw)
+        for i in xrange(len(timePriceList_raw)):
             counted = 0
             avg = 0
             for j in xrange (1, deriv_avg_n):
@@ -52,126 +62,159 @@ def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
             else:
                 avg = copy_list[0][1]
             delta = copy_list[i][1] - avg
-            timePriceList[i][1] = delta
+            timePriceList_raw[i][1] = delta
 
     """uniformo le date in millisec del dataset dei prezzi a oggetti py datetime"""
     closer_future_date_data = [datetime.datetime.now(), -1]
-    for tupla in timePriceList:
+    timePriceList = []
+    last_day_seen = datetime.datetime.fromtimestamp(0)
+    for tupla in timePriceList_raw:
         tupla[0] = datetime.datetime.fromtimestamp(tupla[0]/1000.0)
-        if abs(tupla[0] - up_to_date) < abs(closer_future_date_data[0] - up_to_date) \
-                and tupla[0] - up_to_date > datetime.timedelta(0):
-            closer_future_date_data = tupla
+        """ remove duplicate days (24h sampling, to uniform with older data) and remove dates after simulation start (up_to_date)"""
+        if tupla[0].day != last_day_seen.day and tupla[0] < up_to_date:
+            timePriceList.append(tupla)
+            last_day_seen = tupla[0]
+            if abs(tupla[0] - up_to_date) < abs(closer_future_date_data[0] - up_to_date) and tupla[0] - up_to_date > datetime.timedelta(0):
+                closer_future_date_data = tupla
 
-    """ creo uno starting point per i tornei 15 giorni prima del primo prezzo considerato """
-    first_price_date = timePriceList[0][0]
-    first_price_date -= datetime.timedelta(days=15)
-    """ remove from list of prices all the prices posterior to certain date [FOR SIMULATION]"""
-    timePriceList = [x for x in timePriceList if x[0] < up_to_date]
-    """ add price of next time instant wrt simulation start to build exogenous variables for prediciton """
-    if closer_future_date_data[1] > -1 and len(timePriceList) > 0:
-        timePriceList.append(closer_future_date_data)
+    if len(timePriceList) > 0:
+
+        """ creo uno starting point per i tornei 15 giorni prima del primo prezzo considerato """
+        first_price_date = timePriceList[0][0]
+        first_price_date -= datetime.timedelta(days=15)
+
+        """ add price of next time instant wrt simulation start to build exogenous variables for prediciton """
+        if closer_future_date_data[1] > -1 and len(timePriceList) > 0:
+            timePriceList.append(closer_future_date_data)
+
+        """ tourDateCount: dizionario --> data torneo = numero di quella carta in top8 """
+        tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO, first_price_date)
+        ptDateCount = build_pt_history(os.path.splitext(card_file)[0], first_price_date)
+
+        checkmax_list = [x[1] for x in tourDateCount]
+        """ valore di massimo dell'uso dei tornei, serve per creare soglia d'ingresso """
+        max_val = max(checkmax_list)
+
+        if len(tourDateCount) > 0 and max_val >= 1:
+            """ costruisco standardizedTourCount, un dizionario in cui ad ogni giorno (date prese da quelle del dizionario dei prezzi,
+            aggiornato giorno per giorno) associo l'uso di quella carta nel torneo più recente """
+            for datePrice in timePriceList:
+                biggerThanAny = True
+                if datePrice[0] - tourDateCount[0][0] >= datetime.timedelta(days=1):
+                    for budgetD in tourDateCount:
+                        """ nelle liste ordinate il primo valore di data di torneo segnala che bisogna prendere in considerazione il torneo immediatamente precedente
+                        Es. dateprice = 4 gennaio -> scorro la lista dei tornei fino al dateTour 5 gennaio che è > datePrice ->
+                        considero il dateTour immediatamente precedente, ossia il primo dateTour < datePrice (es. 2 gennaio) """
+                        if datePrice[0] < budgetD[0]:
+                            tour_date_to_insert = budgetD[0]
+                            index = tourDateCount.index(budgetD)
+                            """ prendo l'esogeno del giorno precedente al prezzo per simulare l'assenza dell'esogeno del giorno nella realtà """
+                            while tour_date_to_insert.day == datePrice[0].day or tour_date_to_insert >= datePrice[0]:
+                                index -= 1
+                                tour_date_to_insert = tourDateCount[index][0]
+                                if index == 0: break
+                            standardizedTourCount.append([datePrice[0], tourDateCount[index][1]])
+                            biggerThanAny = False
+                            break
+                    """ se il prezzo ha una data posteriore a qualunque dato di torneo, replico l'ultimo dato e lo associo a questa data """
+                    if biggerThanAny:
+                        standardizedTourCount.append([datePrice[0], tourDateCount[-1][1]])
+                else:
+                    standardizedTourCount.append([datePrice[0], 0])
+
+            """uso derivata ANCHE DEI TORNEI (vedi sopra sui prezzi per spiegazione)"""
+            if derivative:
+                differentiate_timeseries(standardizedTourCount)
+
+            usedDays = set()
+            for dateTour in standardizedTourCount:
+                has_the_day = False
+                for datePt in ptDateCount:
+                    """ 3 because pt data file is set on Friday start but data is available only on Sunday (and then on Monday for prediction)"""
+                    if (dateTour[0] - datePt[0]).days == 3:
+                        day = dateTour[0].replace(hour=0, minute=0, second=0, microsecond=0)
+                        if not day in usedDays:
+                            has_the_day = True
+                            standardizedPtCount.append([dateTour[0], datePt[1] - dateTour[1]])
+                            usedDays.add(day)
+                            break
+                if not has_the_day:
+                    standardizedPtCount.append([dateTour[0], 0])
+            extend_timeseries_w_gamma(standardizedPtCount, 0.7)
+
+            """costruisco la time_serie dell'uso di ogni carta nei Budget Decks di MTGoldfish"""
+            budgetDateCount = build_budget_history(os.path.splitext(card_file)[0], average, time, first_price_date)
+            for datePrice in timePriceList:
+                biggerThanAny = True
+                if datePrice[0] - budgetDateCount[0][0] >= datetime.timedelta(days=1):
+                    for budgetD in budgetDateCount:
+                        if datePrice[0] < budgetD[0]:
+                            tour_date_to_insert = budgetD[0]
+                            index = budgetDateCount.index(budgetD)
+                            """ prendo l'esogeno del giorno precedente al prezzo per simulare l'assenza dell'esogeno del giorno nella realtà """
+                            while tour_date_to_insert.day == datePrice[0].day or tour_date_to_insert >= datePrice[0]:
+                                index -= 1
+                                tour_date_to_insert = budgetDateCount[index][0]
+                                if index == 0: break
+                            standardizedBudgetCount.append([datePrice[0], budgetDateCount[index][1]])
+                            biggerThanAny = False
+                            break
+                    if biggerThanAny:
+                        standardizedBudgetCount.append([datePrice[0], budgetDateCount[-1][1]])
+                else:
+                    standardizedBudgetCount.append([datePrice[0], 0])
 
 
-    """ tourDateCount: dizionario --> data torneo = numero di quella carta in top8 """
-    tourDateCount = build_tournament_history(os.path.splitext(card_file)[0], average, time, onlyMTGO, first_price_date)
-    ptDateCount = build_pt_history(os.path.splitext(card_file)[0], first_price_date)
+            """costruisco la time_serie dell'uso di ogni carta in tutte le altre rubriche di MTGoldfish"""
+            AllGoldfishDateCount = build_all_goldfish_history(os.path.splitext(card_file)[0], average, time, first_price_date)
+            for datePrice in timePriceList:
+                biggerThanAny = True
+                if datePrice[0] - AllGoldfishDateCount[0][0] >= datetime.timedelta(days=1):
+                    for allGoldD in AllGoldfishDateCount:
+                        if datePrice[0] < allGoldD[0]:
+                            tour_date_to_insert = allGoldD[0]
+                            index = AllGoldfishDateCount.index(allGoldD)
+                            """ prendo l'esogeno del giorno precedente al prezzo per simulare l'assenza dell'esogeno del giorno nella realtà """
+                            while tour_date_to_insert.day == datePrice[0].day or tour_date_to_insert >= datePrice[0]:
+                                index -= 1
+                                tour_date_to_insert = AllGoldfishDateCount[index][0]
+                                if index == 0: break
+                            standardizedAllGoldfishCount.append([datePrice[0], AllGoldfishDateCount[index][1]])
+                            biggerThanAny = False
+                            break
+                    if biggerThanAny:
+                        standardizedAllGoldfishCount.append([datePrice[0], AllGoldfishDateCount[-1][1]])
+                else:
+                    standardizedAllGoldfishCount.append([datePrice[0], 0])
 
-    checkmax_list = [x[1] for x in tourDateCount]
-    """ valore di massimo dell'uso dei tornei, serve per creare soglia d'ingresso """
-    max_val = max(checkmax_list)
 
-    standardizedTourCount = []
-    standardizedBudgetCount = []
-    limitedSupply = []
-    standardExit = []
-    standardizedAllGoldfishCount = []
-    standardizedPtCount = []
-    standardizedModernCount = []
-    MACD_index = []
-    RSI_index = []
+            """costruisco la time_serie dell'uso di ogni carta nei tornei online Modern"""
+            modernCount = build_modern_history(os.path.splitext(card_file)[0], average, time, first_price_date)
+            for datePrice in timePriceList:
+                biggerThanAny = True
+                if datePrice[0] - modernCount[0][0] >= datetime.timedelta(days=1):
+                    for modernD in modernCount:
+                        if datePrice[0] < modernD[0]:
+                            tour_date_to_insert = modernD[0]
+                            index = modernCount.index(modernD)
+                            """ prendo l'esogeno del giorno precedente al prezzo per simulare l'assenza dell'esogeno del giorno nella realtà """
+                            while tour_date_to_insert.day == datePrice[0].day or tour_date_to_insert >= datePrice[0]:
+                                index -= 1
+                                tour_date_to_insert = modernCount[index][0]
+                                if index == 0: break
+                            standardizedModernCount.append([datePrice[0], modernCount[index][1]])
+                            biggerThanAny = False
+                            break
+                    if biggerThanAny:
+                        standardizedModernCount.append([datePrice[0], modernCount[-1][1]])
+                else:
+                    standardizedModernCount.append([datePrice[0], 0])
 
-    if len(tourDateCount) > 0 and max_val >= 1:
-        """ costruisco standardizedTourCount, un dizionario in cui ad ogni giorno (date prese da quelle del dizionario dei prezzi,
-        aggiornato giorno per giorno) associo l'uso di quella carta nel torneo più recente """
-        for datePrice in timePriceList:
-            biggerThanAny = True
-            previous = (datePrice[0], 0)
-            for budgetD in tourDateCount:
-                """ nelle liste ordinate il primo valore di data di torneo segnala che bisogna prendere in considerazione il torneo immediatamente precedente
-                Es. dateprice = 4 gennaio -> scorro la lista dei tornei fino al dateTour 5 gennaio che è > datePrice ->
-                considero il dateTour immediatamente precedente, ossia il primo dateTour < datePrice (es. 2 gennaio) """
-                if datePrice[0] < budgetD[0]:
-                    standardizedTourCount.append([datePrice[0], previous[1]])
-                    biggerThanAny = False
-                    break
-                previous = budgetD
-            """ se il prezzo ha una data posteriore a qualunque dato di torneo, replico l'ultimo dato e lo associo a questa data """
-            if biggerThanAny:
-                standardizedTourCount.append([datePrice[0], tourDateCount[-1][1]])
+            #fill_supply_feature(set_dir, limitedSupply, timePriceList)
+            #fill_standard_exit(set_dir, standardExit, timePriceList)
 
-        """uso derivata ANCHE DEI TORNEI (vedi sopra sui prezzi per spiegazione)"""
-        if derivative:
-            differentiate_timeseries(standardizedTourCount)
-
-        usedDays = set()
-        for dateTour in standardizedTourCount:
-            has_the_day = False
-            for datePt in ptDateCount:
-                if (dateTour[0] - datePt[0]).days == 0:
-                    day = dateTour[0].replace(hour=0, minute=0, second=0, microsecond=0)
-                    if not day in usedDays:
-                        has_the_day = True
-                        standardizedPtCount.append([dateTour[0], datePt[1] - dateTour[1]])
-                        usedDays.add(day)
-                        break
-            if not has_the_day:
-                standardizedPtCount.append([dateTour[0], 0])
-        extend_timeseries_w_gamma(standardizedPtCount, 0.7)
-
-        """costruisco la time_serie dell'uso di ogni carta nei Budget Decks di MTGoldfish"""
-        budgetDateCount = build_budget_history(os.path.splitext(card_file)[0], average, time, first_price_date)
-        for datePrice in timePriceList:
-            biggerThanAny = True
-            for budgetD in budgetDateCount:
-                if datePrice[0] < budgetD[0]:
-                    standardizedBudgetCount.append([datePrice[0], previous[1]])
-                    biggerThanAny = False
-                    break
-                previous = budgetD
-            if biggerThanAny:
-                standardizedBudgetCount.append([datePrice[0], budgetDateCount[-1][1]])
-
-        """costruisco la time_serie dell'uso di ogni carta in tutte le altre rubriche di MTGoldfish"""
-        AllGoldfishDateCount = build_all_goldfish_history(os.path.splitext(card_file)[0], average, time, first_price_date)
-        for datePrice in timePriceList:
-            biggerThanAny = True
-            for allGoldD in AllGoldfishDateCount:
-                if datePrice[0] < allGoldD[0]:
-                    standardizedAllGoldfishCount.append([datePrice[0], previous[1]])
-                    biggerThanAny = False
-                    break
-                previous = allGoldD
-            if biggerThanAny:
-                standardizedAllGoldfishCount.append([datePrice[0], AllGoldfishDateCount[-1][1]])
-
-        """costruisco la time_serie dell'uso di ogni carta nei tornei online Modern"""
-        modernCount = build_modern_history(os.path.splitext(card_file)[0], average, time, first_price_date)
-        for datePrice in timePriceList:
-            biggerThanAny = True
-            for modernD in modernCount:
-                if datePrice[0] < modernD[0]:
-                    standardizedModernCount.append([datePrice[0], previous[1]])
-                    biggerThanAny = False
-                    break
-                previous = modernD
-            if biggerThanAny:
-                standardizedModernCount.append([datePrice[0], standardizedModernCount[-1][1]])
-
-        #fill_supply_feature(set_dir, limitedSupply, timePriceList)
-        #fill_standard_exit(set_dir, standardExit, timePriceList)
-
-        MACD_index = build_MACD_index(timePriceList)
-        RSI_index = build_RSI_index(timePriceList)
+            MACD_index = build_MACD_index(timePriceList)
+            RSI_index = build_RSI_index(timePriceList)
 
     time_series = [timePriceList, standardizedTourCount, standardizedBudgetCount, limitedSupply, standardExit,
                    standardizedAllGoldfishCount, standardizedPtCount, standardizedModernCount, MACD_index, RSI_index]
@@ -335,11 +378,3 @@ def differentiate_timeseries(time_serie):
         time_serie[i][1] = delta
 
 
-
-
-set_dir = "TST"
-
-prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
-price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
-for card_file in price_files:
-    get_base_timeseries("TST", card_file, datetime.datetime.now(), False)

@@ -3,6 +3,7 @@ from data_builder import *
 from os import listdir
 from os.path import isfile, join
 import os
+import json
 import pandas as pd
 import pyflux as pf
 import numpy as np
@@ -18,7 +19,7 @@ import math
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 """ directory dei set dai quali prendere i dati dei prezzi, cambiare la lista per considerare diversi set al lancio """
-set_dirs = ["TST"];
+set_dirs = ["SOI"];
 
 
 """ numero di lags autoregressivi presi in considerazione """
@@ -38,12 +39,21 @@ MSEs = {}
 """ dictionary that stores the trained model for each card indexed by card name """
 models_table = {}
 
+feature_selection_table = {}
+
+
 
 def get_file_name(AR, MA):
-    return "NOREFIT_AR" + str(AR) + "_MA" + str(MA)+ "_FEATURE_SELECTION_W_INDEXS"
+    return "NOREFIT_AR" + str(AR) + "_MA" + str(MA)+ "_START_TRAIN_"
 
 
-def sequential_forward_feature_selection(df, prices):
+def sequential_forward_feature_selection(df, prices, set_dir, card):
+
+    load_feature_selection_table(set_dir)
+    if card in feature_selection_table:
+        formula = feature_selection_table[card]
+        return formula
+
     features_raw = df.columns.values.tolist()
     features_raw.remove('prices')
 
@@ -80,21 +90,36 @@ def sequential_forward_feature_selection(df, prices):
             SSE = 0
             for real, pred in zip(real_prices, predicted_prices):
                 SSE += (real - pred) ** 2
-            pprint("SSE precedente: " + str(minSSE))
-            pprint("SSE Modello con formula " + str(formula_try) + ": " + str(SSE))
 
             if SSE < minSSE:
                 minSSE = SSE
-                pprint("Procedo con feature successiva, includendo " + feat)
                 formula = formula_try
                 features.remove(feat)
                 improving = True
                 break
 
-        if not improving:
-            pprint("Nessun miglioramento, interrompo procedura")
-
+    feature_selection_table[card] = formula
     return formula
+
+
+def get_feature_selection_table():
+    return feature_selection_table
+
+def clear_feature_selection_table():
+    feature_selection_table.clear()
+
+def load_feature_selection_table(set_dir):
+    global feature_selection_table
+    if not feature_selection_table:
+        if os.path.isfile(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json"):
+            with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json") as jsonMap:
+                feature_selection_table = json.load(jsonMap)
+
+def save_feature_selection_table(set_dir):
+    jsonData = get_feature_selection_table()
+    with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json", 'w') as outfile:
+        json.dump(jsonData, outfile, sort_keys=True, indent=4, ensure_ascii=True)
+    clear_feature_selection_table()
 
 
 def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, up_to_date, simulation_mode):
@@ -155,17 +180,10 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
             df.index = df['dates']
             del df['dates']
 
-            """ creazione modello ARIMAX ## CHANGE THE FORMULA FOR DIFFERENT PREDICTIONS """
-            if max(budget) > 0:
-                formula = 'prices ~ 1 + usage + budget + MACD'
-            else:
-                formula = 'prices ~ 1 + usage + MACD'
-
-            #formula = sequential_forward_feature_selection(df, prices)
-            #formula = 'prices ~ 1 + usage + budget + ptExps'
+            formula = sequential_forward_feature_selection(df, prices, set_dir, os.path.splitext(card_file)[0])
 
             model = pf.ARIMAX(data=df, formula=formula, ar=AR, ma=MA)
-            """ if we are in simulation mode we stored the card's model latent variables to reuse at each time step """
+            """ if we are in simulation mode we have stored the card's model latent variables to reuse at each time step """
             if simulation_mode and card_file in models_table:
                 model.latent_variables = models_table[card_file]
             else:
@@ -181,8 +199,9 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
                 datafile.write("\n\n")
                 datafile.write(title)
                 datafile.write("\n")
-                for s in x.summary():
-                    datafile.write(str(s))
+                if x.summary():
+                    for s in x.summary():
+                        datafile.write(str(s))
 
             if simulation_mode:
                 n_prediction_samples = 1
@@ -238,70 +257,66 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
 
 
 
+def set_prediction_recap_launch():
+    for set_dir in set_dirs:
 
-for set_dir in set_dirs:
+        if not os.path.exists(set_dir):
+            os.makedirs(set_dir)
+        prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
 
-    if not os.path.exists(set_dir):
-        os.makedirs(set_dir)
-    prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
+        price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
 
-    price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
+        averages_residuals = []
+        variances_residuals = []
 
-    averages_residuals = []
-    variances_residuals = []
+        with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "_prediction_analysis_" + get_file_name(AR, MA) + ".txt", "w") as datafile:
+            if not os.path.exists(join(base_path, join(set_dir, get_file_name(AR, MA) ))):
+                os.makedirs(join(base_path, join(set_dir, get_file_name(AR, MA) )))
+            for card_file in price_files:
+                df_list = get_ARIMAX_prediction(set_dir, card_file, datafile, True, True, datetime.datetime.now(), False)
+                if df_list is not None:
+                    df = df_list[0]
+                    predicted_df = df_list[1]
+                    predicted_prices = predicted_df['prices'].values.tolist()
+                    prices = df['prices'].values.tolist()[- len(predicted_prices):]
+                    title = os.path.splitext(card_file)[0]
 
-    with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "_prediction_analysis_" + get_file_name(AR, MA) + ".txt", "w") as datafile:
-        if not os.path.exists(join(base_path, join(set_dir, get_file_name(AR, MA) ))):
-            os.makedirs(join(base_path, join(set_dir, get_file_name(AR, MA) )))
-        for card_file in price_files:
+                    """analisi residui"""
+                    delta_pred = [real - pred for real, pred in zip(prices, predicted_prices)]
+                    avg_residuals = sum(delta_pred)/float(len(delta_pred))
+                    averages_residuals.append(avg_residuals)
+                    var_residuals = np.var(delta_pred)
+                    variances_residuals.append(var_residuals)
+                    datafile.write("Average Residuals: ")
+                    datafile.write(str(avg_residuals) + "\n")
+                    datafile.write("Variance Residuals: ")
+                    datafile.write(str(var_residuals) + "\n")
 
-                    df_list = get_ARIMAX_prediction(set_dir, card_file, datafile, True, True, datetime.datetime.now(), False)
-                    if df_list is not None:
-                        df = df_list[0]
-                        predicted_df = df_list[1]
-                        predicted_prices = predicted_df['prices'].values.tolist()
-                        prices = df['prices'].values.tolist()[- len(predicted_prices):]
-                        title = os.path.splitext(card_file)[0]
-
-                        """analisi residui"""
-                        delta_pred = [real - pred for real, pred in zip(prices, predicted_prices)]
-                        avg_residuals = sum(delta_pred)/float(len(delta_pred))
-                        averages_residuals.append(avg_residuals)
-                        var_residuals = np.var(delta_pred)
-                        variances_residuals.append(var_residuals)
-                        datafile.write("Average Residuals: ")
-                        datafile.write(str(avg_residuals) + "\n")
-                        datafile.write("Variance Residuals: ")
-                        datafile.write(str(var_residuals) + "\n")
-
-        if len(MSEs) > 0:
-            totalMSE = 0
-            meanMSE = 0
-            for MSE in MSEs.values():
-                totalMSE += MSE
-            meanMSE = totalMSE/len(MSEs)
-            datafile.write("\n\n")
-            datafile.write("ARIMAX model with AR " + str(AR) + " and MA " + str(MA) + "\n")
-            datafile.write("Total MSE of set " + set_dir + "\n")
-            datafile.write(str(totalMSE) + "\n")
-            datafile.write("Mean MSE of set " + set_dir + "\n")
-            datafile.write(str(meanMSE)+ "\n")
-        if len(averages_residuals) > 0 and len(variances_residuals) > 0:
-            total_avgs = sum(averages_residuals)
-            datafile.write("Sum of Residuals Averages of set " + set_dir + "\n")
-            datafile.write(str(total_avgs) + "\n")
-            mean_avgs = total_avgs/float(len(averages_residuals))
-            datafile.write("Average of Residuals Averages of set " + set_dir + "\n")
-            datafile.write(str(mean_avgs) + "\n")
-            total_vars = sum(variances_residuals)
-            datafile.write("Sum of Residuals Variances of set " + set_dir + "\n")
-            datafile.write(str(total_vars) + "\n")
-            mean_vars = total_vars / float(len(variances_residuals))
-            datafile.write("Average of Residuals Variances of set " + set_dir + "\n")
-            datafile.write(str(mean_vars) + "\n")
-
-
-
+            if len(MSEs) > 0:
+                totalMSE = 0
+                meanMSE = 0
+                for MSE in MSEs.values():
+                    totalMSE += MSE
+                meanMSE = totalMSE/len(MSEs)
+                datafile.write("\n\n")
+                datafile.write("ARIMAX model with AR " + str(AR) + " and MA " + str(MA) + "\n")
+                datafile.write("Total MSE of set " + set_dir + "\n")
+                datafile.write(str(totalMSE) + "\n")
+                datafile.write("Mean MSE of set " + set_dir + "\n")
+                datafile.write(str(meanMSE)+ "\n")
+            if len(averages_residuals) > 0 and len(variances_residuals) > 0:
+                total_avgs = sum(averages_residuals)
+                datafile.write("Sum of Residuals Averages of set " + set_dir + "\n")
+                datafile.write(str(total_avgs) + "\n")
+                mean_avgs = total_avgs/float(len(averages_residuals))
+                datafile.write("Average of Residuals Averages of set " + set_dir + "\n")
+                datafile.write(str(mean_avgs) + "\n")
+                total_vars = sum(variances_residuals)
+                datafile.write("Sum of Residuals Variances of set " + set_dir + "\n")
+                datafile.write(str(total_vars) + "\n")
+                mean_vars = total_vars / float(len(variances_residuals))
+                datafile.write("Average of Residuals Variances of set " + set_dir + "\n")
+                datafile.write(str(mean_vars) + "\n")
 
 
 

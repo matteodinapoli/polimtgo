@@ -21,7 +21,7 @@ set_dirs = ["SOI", "EMN", "OGW", "BFZ", "KLD"];
 data = {}
 
 """ start date of simulation """
-start = "2017-02-01 20:30:55"
+start = "2017-01-01 20:30:55"
 now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
 budget = 200
 max_card_pieces = 20
@@ -91,9 +91,7 @@ def fill_investment_portfolio(margin_list, now_date):
         card_name = margin_tupla[0]
         margin = margin_tupla[1]
         today_buy_price = margin_tupla[2]
-        spread = today_buy_price * 0.1
-        if spread < 0.05:
-            spread = 0.05
+        spread = get_spread(today_buy_price)
         total_price = today_buy_price + spread
 
         if margin > spread:
@@ -129,9 +127,7 @@ def buy_cards(card_name, quantity, total_price):
     global owned_cards
     pprint("ACQUISTO DI " + str(quantity) + " " + str(card_name) + " A " + str(total_price) + " A PEZZO")
     datafile.write("ACQUISTO DI " + str(quantity) + " " + str(card_name) + " A " + str(total_price) + " A PEZZO\n")
-    pprint("BUDGET PRECEDENTE: " + str(budget))
     budget -= quantity * total_price
-    pprint("NUOVO BUDGET: " + str(budget))
     if card_name in owned_cards:
         owned_cards[card_name] += quantity
     else:
@@ -144,20 +140,45 @@ def sell_cards(card_name, today_sell_price):
     quantity = owned_cards[card_name]
     pprint("VENDITA DI " + str(quantity) + " " + str(card_name) + " A " + str(today_sell_price) + " A PEZZO")
     datafile.write("VENDITA DI " + str(quantity) + " " + str(card_name) + " A " + str(today_sell_price) + " A PEZZO\n")
-    pprint("BUDGET PRECEDENTE: " + str(budget))
     budget += quantity * today_sell_price
-    pprint("NUOVO BUDGET: " + str(budget))
     del owned_cards[card_name]
 
 
-with open(get_data_location() + "Simulation.txt", "w") as datafile:
+def assess_portfolio(now_date):
+    current_patrimony = 0
+    for card_name, quantity in owned_cards.items():
+        card_map = data[card_name]
+        current_key = find_current_time_key(card_map[0], now_date)
+        today_sell_price = card_map[0][current_key]
+        today_sell_price -= get_spread(today_sell_price)
+        current_patrimony += quantity * today_sell_price
+    current_patrimony += budget
+    pprint("PATRIMONIO CORRENTE: " + str(current_patrimony))
+    datafile.write("PATRIMONIO CORRENTE: " + str(current_patrimony) + "\n")
+
+
+def get_spread(price):
+    spread = price*0.1
+    if spread < 0.05: spread = 0.05
+    return spread
+
+
+with open(get_data_location() + "SimulationOld_OldSpread.txt", "w") as datafile:
     for step in range(simulation_steps):
 
         a = datetime.datetime.now()
 
-        pprint("********** " + str(now_date) + "**********")
+        pprint("********** " + str(now_date) + " **********")
         datafile.write("\n\n")
         datafile.write("********** " + str(now_date) + "**********\n")
+
+        build_investment_map(now_date)
+        margin_list = get_investment_margin_list(now_date)
+        manage_owned_cards(margin_list, now_date)
+        if step < simulation_steps - 1:
+            fill_investment_portfolio(margin_list, now_date)
+        assess_portfolio(now_date)
+
         pprint("CARTE POSSEDUTE")
         datafile.write("CARTE POSSEDUTE\n")
         pprint(owned_cards)
@@ -165,25 +186,19 @@ with open(get_data_location() + "Simulation.txt", "w") as datafile:
         pprint("BUDGET")
         datafile.write("BUDGET\n")
         pprint(budget)
-        datafile.write(str(budget)+ "\n")
-        build_investment_map()
-        margin_list = get_investment_margin_list(now_date)
-        manage_owned_cards(margin_list, now_date)
-        fill_investment_portfolio(margin_list, now_date)
+        datafile.write(str(budget) + "\n")
 
-        if now_date > double_date:
-            now_date += datetime.timedelta(hours=12)
-        else:
-            now_date += datetime.timedelta(hours=24)
+        if step == simulation_steps - 1:
+            sell_all_owned_cards()
+            datafile.write("BUDGET FINALE\n")
+            datafile.write(str(budget) + "\n")
+
+        now_date += datetime.timedelta(hours=24)
 
         b = datetime.datetime.now()
         delta = b - a
         pprint("STEP TIME")
         print delta
-
-    sell_all_owned_cards()
-    datafile.write("BUDGET FINALE\n")
-    datafile.write(str(budget) + "\n")
 
 
 
