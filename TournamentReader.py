@@ -164,7 +164,7 @@ def build_history(tfiles, card, avg, time, budget, kind, first_price_date):
             copy_list = copy.deepcopy(tour_date_count)
             for date_num in tour_date_count:
                 avg_val = []
-                for j in xrange(pos, pos - considered_tours, -1):
+                for j in range(pos, pos - considered_tours, -1):
                     if j >= 0:
                         avg_val.append(copy_list[j][1])
                 date_num[1] = (sum(avg_val) / float(len(avg_val)))

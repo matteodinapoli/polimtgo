@@ -9,7 +9,7 @@
       <excludeFolder url="file://$MODULE_DIR$/OGW" />
       <excludeFolder url="file://$MODULE_DIR$/SOI" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.6.3 (C:\Users\pitu\AppData\Local\Programs\Python\Python36\python.exe)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TestRunnerService">

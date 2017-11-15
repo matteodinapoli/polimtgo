@@ -13,8 +13,6 @@ import numpy as np
 import bisect
 
 releases = {"AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
-start_double = "2016-12-01 18:30:55"
-double_date = datetime.datetime.strptime(start_double, "%Y-%m-%d %H:%M:%S")
 
 test_mode = False
 
@@ -34,8 +32,8 @@ max_card_pieces = 20
 owned_cards = {}
 simulation_steps = 30
 buy_threshold = 0
-BH_stoploss_threshold = 0.2
-BH_stopgain_threshold = 0.1
+BH_stoploss_threshold = 0.3
+BH_stopgain_threshold = 0.3
 
 
 def find_current_time_key(dict, time):
@@ -51,15 +49,16 @@ def find_next_time_key(dict, time):
 def get_investment_margin_list(now_date):
     margin_list = []
 
-    for card_name, dicts_list in data.items():
+    for card_name, dicts_list in data.copy().items():
         current_key = find_current_time_key(dicts_list[0], now_date)
         next_key = find_next_time_key(dicts_list[1], now_date)
         if current_key in dicts_list[0]:
             today_buy_price = dicts_list[0][current_key]
             if next_key in dicts_list[1]:
                 tomorrow_sell_price = dicts_list[1][next_key]
-                margin = tomorrow_sell_price - today_buy_price
-                margin_list.append([card_name, margin, today_buy_price, tomorrow_sell_price])
+                tomorrow_sell_price_conf_10 = dicts_list[2][next_key]
+                margin = tomorrow_sell_price_conf_10 - today_buy_price
+                margin_list.append([card_name, margin, today_buy_price, tomorrow_sell_price, tomorrow_sell_price_conf_10])
             else:
                 pprint("PREDICTION DI DOMANI " + str(next_key) + " NON PRESENTE PER " + str(card_name))
         else:
@@ -75,7 +74,7 @@ def evaluate_available_sets(now_date):
     if test_mode:
         set_dirs = ["TST"]
         return
-    for set_name, timestamp in releases.items():
+    for set_name, timestamp in releases.copy().items():
         set_date = datetime.datetime.fromtimestamp(timestamp/1000.0)
         if now_date - set_date > datetime.timedelta(days=75):
             if set_name not in set_dirs:
@@ -97,12 +96,13 @@ def build_investment_map(now_date):
                 df = df_list[0]
                 predicted_df = df_list[1]
                 prices_raw = df.ix[-2:]['prices'].to_dict()
-                prices = {key.to_datetime().replace(minute=0, second=0, microsecond=0): val for key, val in prices_raw.items()}
+                prices = {key.to_datetime().replace(minute=0, second=0, microsecond=0): val for key, val in prices_raw.copy().items()}
                 predicted_prices_raw = predicted_df['prices'].to_dict()
-                predicted_prices = {key.to_datetime().replace(minute=0, second=0, microsecond=0) : val for key, val in predicted_prices_raw.items()}
-                #predicted_prices_raw = predicted_df['10% Prediction Interval'].to_dict()
-                #predicted_prices = {key.to_datetime().replace(minute=0, second=0, microsecond=0): val for key, val in predicted_prices_raw.items()}
-                data[os.path.splitext(card_file)[0]] = [prices, predicted_prices]
+                predicted_prices = {key.to_datetime().replace(minute=0, second=0, microsecond=0) : val for key, val in predicted_prices_raw.copy().items()}
+                """confidence intervals 10"""
+                confidence_delta_10 = df_list[2][1]
+                predicted_prices_10 = {key: val - confidence_delta_10 for key, val in predicted_prices.copy().items()}
+                data[os.path.splitext(card_file)[0]] = [prices, predicted_prices, predicted_prices_10]
             else:
                 if os.path.splitext(card_file)[0] in data:
                     pprint("ATTENZIONE: PREDICTION DI " + str(card_file) + " NON HA ELABORATO UN RISULTATO\n")
@@ -114,7 +114,7 @@ def fill_investment_portfolio(margin_list, now_date):
     for margin_tupla in margin_list:
 
         card_name = margin_tupla[0]
-        margin = margin_tupla[1]
+        margin = margin_tupla[1]  #BUILT ON THE LOW CONFIDENCE INTERVAL TOMORROW SELL PRICE!
         today_buy_price = margin_tupla[2]
         tomorrow_sell_price = margin_tupla[3]
 
@@ -128,7 +128,7 @@ def fill_investment_portfolio(margin_list, now_date):
 
 
 def manage_owned_cards(margin_list, now_date):
-    for card_name, price_key in owned_cards.items():
+    for card_name, price_key in owned_cards.copy().items():
         card_map = data[card_name]
         current_key = find_current_time_key(card_map[0], now_date)
         next_key = find_next_time_key(card_map[1], now_date)
@@ -136,7 +136,7 @@ def manage_owned_cards(margin_list, now_date):
         today_sell_price -= get_spread(today_sell_price)
         tomorrow_sell_price = card_map[1][next_key]
         tomorrow_sell_price -= get_spread(tomorrow_sell_price)
-        for past_price, quantity in price_key.items():
+        for past_price, quantity in price_key.copy().items():
             loss = past_price - today_sell_price
             loss_percentage = loss/float(past_price)
             if today_sell_price >= tomorrow_sell_price and (loss_percentage > BH_stoploss_threshold or - loss_percentage > BH_stopgain_threshold):
@@ -147,12 +147,12 @@ def manage_owned_cards(margin_list, now_date):
                     transactions[card_name] = [quantity, -loss]
 
 def sell_all_owned_cards():
-    for card_name, price_key in owned_cards.items():
+    for card_name, price_key in owned_cards.copy().items():
         card_map = data[card_name]
         current_key = find_current_time_key(card_map[0], now_date)
         today_sell_price = card_map[0][current_key]
         today_sell_price -= get_spread(today_sell_price)
-        for past_price, quantity in price_key.items():
+        for past_price, quantity in price_key.copy().items():
             loss = past_price - today_sell_price
             sell_cards(card_name, past_price, today_sell_price)
             if card_name in transactions:
@@ -193,12 +193,12 @@ def sell_cards(card_name, past_buy_price, today_sell_price):
 
 def assess_portfolio(now_date):
     current_patrimony = 0
-    for card_name, purchase_dict in owned_cards.items():
+    for card_name, purchase_dict in owned_cards.copy().items():
         card_map = data[card_name]
         current_key = find_current_time_key(card_map[0], now_date)
         today_sell_price = card_map[0][current_key]
         today_sell_price -= get_spread(today_sell_price)
-        for price_key, quantity in purchase_dict.items():
+        for price_key, quantity in purchase_dict.copy().items():
             current_patrimony += quantity * today_sell_price
     current_patrimony += budget
     pprint("PATRIMONIO CORRENTE: " + str(current_patrimony))
@@ -259,48 +259,45 @@ def get_spread(price):
     return price * 0.05
 
 
+if __name__ == "__main__":
+    with open(get_data_location() + "Simulation_StopLoss3_conf10_30_30.txt", "w") as datafile:
+        for step in range(simulation_steps):
 
+            a = datetime.datetime.now()
 
-with open(get_data_location() + "Simulation_StopLoss_5.txt", "w") as datafile:
-    for step in range(simulation_steps):
+            pprint("********** " + str(now_date) + " **********")
+            datafile.write("\n\n")
+            datafile.write("********** " + str(now_date) + "**********\n")
 
-        a = datetime.datetime.now()
+            build_investment_map(now_date)
+            margin_list = get_investment_margin_list(now_date)
+            manage_owned_cards(margin_list, now_date)
+            if step < simulation_steps - 1:
+                fill_investment_portfolio(margin_list, now_date)
+            assess_portfolio(now_date)
 
-        pprint("********** " + str(now_date) + " **********")
-        datafile.write("\n\n")
-        datafile.write("********** " + str(now_date) + "**********\n")
+            pprint("CARTE POSSEDUTE")
+            datafile.write("CARTE POSSEDUTE\n")
+            pprint(owned_cards)
+            datafile.write(str(owned_cards) + "\n")
+            pprint("BUDGET")
+            datafile.write("BUDGET\n")
+            pprint(budget)
+            datafile.write(str(budget) + "\n")
 
-        build_investment_map(now_date)
-        margin_list = get_investment_margin_list(now_date)
-        manage_owned_cards(margin_list, now_date)
-        if step < simulation_steps - 1:
-            fill_investment_portfolio(margin_list, now_date)
-        assess_portfolio(now_date)
+            if step == simulation_steps - 1:
+                sell_all_owned_cards()
+                datafile.write("LISTA TRANSAZIONI\n")
+                datafile.write(str(transactions) + "\n")
+                datafile.write("BUDGET FINALE\n")
+                datafile.write(str(budget) + "\n")
 
-        pprint("CARTE POSSEDUTE")
-        datafile.write("CARTE POSSEDUTE\n")
-        pprint(owned_cards)
-        datafile.write(str(owned_cards) + "\n")
-        pprint("BUDGET")
-        datafile.write("BUDGET\n")
-        pprint(budget)
-        datafile.write(str(budget) + "\n")
+            now_date += datetime.timedelta(hours=24)
 
-        if step == simulation_steps - 1:
-            sell_all_owned_cards()
-            datafile.write("LISTA TRANSAZIONI\n")
-            datafile.write(str(transactions) + "\n")
-            datafile.write("BUDGET FINALE\n")
-            for key, val in transactions:
-                datafile.write(str(key) + " : " + str(val) + "\n")
-
-        now_date += datetime.timedelta(hours=24)
-
-        b = datetime.datetime.now()
-        delta = b - a
-        pprint("STEP TIME")
-        print delta
-
+            b = datetime.datetime.now()
+            delta = b - a
+            pprint("STEP TIME")
+            print(delta)
 
 
 

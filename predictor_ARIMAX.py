@@ -19,7 +19,7 @@ import math
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 """ directory dei set dai quali prendere i dati dei prezzi, cambiare la lista per considerare diversi set al lancio """
-set_dirs = ["SOI"];
+set_dirs = ["TST"];
 
 
 """ numero di lags autoregressivi presi in considerazione """
@@ -70,7 +70,7 @@ def sequential_forward_feature_selection(df, prices, set_dir, card):
     """only autoregressive model evaluation"""
     model = pf.ARIMAX(data=df, formula=formula, ar=AR, ma=MA)
     model.fit("MLE")
-    n_prediction_samples = len(prices) / 4
+    n_prediction_samples = len(prices) // 4
     predicted_df = model.predict_is(n_prediction_samples, not fit_always, "MLE")
     real_prices = df['prices'].values.tolist()[- n_prediction_samples:]
     predicted_prices = predicted_df['prices'].values.tolist()
@@ -83,7 +83,7 @@ def sequential_forward_feature_selection(df, prices, set_dir, card):
             formula_try = formula + " + " + feat
             model = pf.ARIMAX(data=df, formula=formula_try, ar=AR, ma=MA)
             model.fit("MLE")
-            n_prediction_samples = len(prices) / 4
+            n_prediction_samples = len(prices) // 4
             predicted_df = model.predict_is(n_prediction_samples, not fit_always, "MLE")
             real_prices = df['prices'].values.tolist()[- n_prediction_samples:]
             predicted_prices = predicted_df['prices'].values.tolist()
@@ -120,6 +120,15 @@ def save_feature_selection_table(set_dir):
     with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json", 'w') as outfile:
         json.dump(jsonData, outfile, sort_keys=True, indent=4, ensure_ascii=True)
     clear_feature_selection_table()
+
+
+def get_confidence_deltas(model):
+    mu, Y = model._model(model.latent_variables.get_z_values())
+    values_to_plot = model.link(mu)
+    target = np.array(Y[:-1])
+    estimate = np.array(values_to_plot[1:])
+    residuals = target - estimate
+    return np.percentile(residuals, 5), np.percentile(residuals, 10), np.percentile(residuals, 90), np.percentile(residuals, 95)
 
 
 def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, up_to_date, simulation_mode):
@@ -192,6 +201,7 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
                 if simulation_mode:
                     models_table[card_file] = model.latent_variables
 
+            confidence_deltas = get_confidence_deltas(model)
             title = os.path.splitext(card_file)[0]
 
             if write_data:
@@ -206,7 +216,7 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
             if simulation_mode:
                 n_prediction_samples = 1
             else:
-                n_prediction_samples = len(prices) / 4
+                n_prediction_samples = len(prices) // 4
 
             if steps > 1 and not simulation_mode:
                 """ predizione a steps dell'ultimo quarto di timeseries"""
@@ -252,7 +262,7 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
                 make_prediction_graph(dates[- n_prediction_samples:], prices, predicted_prices, title,
                                       join(set_dir, get_file_name(AR, MA)), MSE)
 
-            return [df, predicted_df]
+            return [df, predicted_df, confidence_deltas]
     return None
 
 
@@ -318,6 +328,5 @@ def set_prediction_recap_launch():
                 datafile.write("Average of Residuals Variances of set " + set_dir + "\n")
                 datafile.write(str(mean_vars) + "\n")
 
-
-
-
+if __name__ == "__main__":
+    set_prediction_recap_launch()

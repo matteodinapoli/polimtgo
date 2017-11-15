@@ -198,7 +198,7 @@ with open(get_data_location() + "SimulationOld_OldSpread.txt", "w") as datafile:
         b = datetime.datetime.now()
         delta = b - a
         pprint("STEP TIME")
-        print delta
+        print(delta)
 
 
 

@@ -27,7 +27,7 @@ standard_exit = {"DTK": 1476050400000}
 
 
 
-def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
+def get_base_timeseries(set_dir, card_file, up_to_date = datetime.datetime.now(), normalized = True):
 
     standardizedTourCount = []
     standardizedBudgetCount = []
@@ -50,10 +50,10 @@ def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
     """uso derivata dei prezzi invece che i prezzi, derivata rispetto alla media degli ultimi deriv_avg_n valori"""
     if derivative:
         copy_list = copy.deepcopy(timePriceList_raw)
-        for i in xrange(len(timePriceList_raw)):
+        for i in range(len(timePriceList_raw)):
             counted = 0
             avg = 0
-            for j in xrange (1, deriv_avg_n):
+            for j in range (1, deriv_avg_n):
                 if (i -  j > 0):
                     avg += copy_list[i - j][1]
                     counted += 1
@@ -67,7 +67,7 @@ def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
     """uniformo le date in millisec del dataset dei prezzi a oggetti py datetime"""
     closer_future_date_data = [datetime.datetime.now(), -1]
     timePriceList = []
-    last_day_seen = datetime.datetime.fromtimestamp(0)
+    last_day_seen = datetime.datetime.fromtimestamp(86400)
     for tupla in timePriceList_raw:
         tupla[0] = datetime.datetime.fromtimestamp(tupla[0]/1000.0)
         """ remove duplicate days (24h sampling, to uniform with older data) and remove dates after simulation start (up_to_date)"""
@@ -229,10 +229,10 @@ def get_base_timeseries(set_dir, card_file, up_to_date, normalized):
 
 def build_RSI_index(timePriceList, periods=14):
     RSI_ts = []
-    for index in xrange(len(timePriceList)):
+    for index in range(len(timePriceList)):
         gains = []
         losses = []
-        for i in xrange(periods):
+        for i in range(periods):
             if index - (i+1) >= 0:
                 delta = timePriceList[index - i][1] - timePriceList[index - i - 1][1]
                 if delta > 0:
@@ -254,17 +254,17 @@ def build_MACD_index(timePriceList, short_period=12, long_period=26, signal_peri
     ma_short = [x[1] for x in build_exponential_moving_average(timePriceList, short_period)]
     ma_long = [x[1] for x in build_exponential_moving_average(timePriceList, long_period)]
     signal_line_p = [s - l for s, l in zip(ma_short, ma_long)]
-    signal_line = [[timePriceList[i][0], signal_line_p[i]] for i in xrange(len(timePriceList))]
+    signal_line = [[timePriceList[i][0], signal_line_p[i]] for i in range(len(timePriceList))]
     ma_signal = build_exponential_moving_average(signal_line, signal_period)
     return ma_signal
 
 
 def build_exponential_moving_average(prices, periods):
     ma_prices = []
-    for index in xrange(len(prices)):
+    for index in range(len(prices)):
         weight = 0
         elem = []
-        for i in xrange(periods):
+        for i in range(periods):
             if index - i >= 0:
                 coeff = 2/float(i+2)
                 elem.append(coeff*prices[index - i][1])
@@ -363,10 +363,10 @@ def fill_standard_exit(set_dir, standardExit, timePriceList):
 
 def differentiate_timeseries(time_serie):
     copy_list = copy.deepcopy(time_serie)
-    for i in xrange(len(time_serie)):
+    for i in range(len(time_serie)):
         counted = 0
         avg = 0
-        for j in xrange(1, deriv_avg_n):
+        for j in range(1, deriv_avg_n):
             if i - j > 0:
                 avg += copy_list[i - j][1]
                 counted += 1

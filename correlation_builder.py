@@ -5,7 +5,6 @@ import math
 from pprint import pprint
 from os import listdir
 from os.path import isfile, join
-from sklearn import preprocessing
 import os
 import copy
 
@@ -51,7 +50,7 @@ for set_dir in set_dirs:
             all_pearson.append(pearson_dict[0])
 
             """ shift del grafico dei tornei indietro, shift dei prezzi in avanti CORRELAZIONE CON UN PREZZO PASSATO"""
-            for i in xrange(shift):
+            for i in range(shift):
                 del tours[0]
                 del prices_copy[0]
                 del prices[-1]
@@ -62,7 +61,7 @@ for set_dir in set_dirs:
             prices_copy = copy.deepcopy(prices)
             tours = [x[1] for x in standardizedTourCount]
             """ shift del grafico dei tornei avanti, shift dei prezzi indietro CORRELAZIONE CON UN PREZZO FUTURO"""
-            for i in xrange(shift):
+            for i in range(shift):
                 del tours[-1]
                 del prices_copy[-1]
                 del prices[0]
