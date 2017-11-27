@@ -1,14 +1,12 @@
 # coding=utf-8
-from data_builder import *
-import numpy
+import copy
 import math
-from pprint import pprint
+import os
 from os import listdir
 from os.path import isfile, join
-import os
-import copy
 
-
+import numpy
+from data_parsing.data_builder import *
 
 #set_dirs = ["DTK", "AER", "KLD", "SOI", "EMN", "BFZ", "OGW"]
 set_dirs = ["TST"]

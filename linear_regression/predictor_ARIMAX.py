@@ -1,14 +1,13 @@
 # coding=utf-8
-from data_builder import *
+import json
+import os
 from os import listdir
 from os.path import isfile, join
-import os
-import json
+
+import numpy as np
 import pandas as pd
 import pyflux as pf
-import numpy as np
-import math
-
+from data_parsing.data_builder import *
 
 """ TODO:
  - risolvere la mancanza di tornei per i periodi carenti del 2015 (DTK) costruendo un crawler direttamente per il sito wizard 
@@ -270,8 +269,6 @@ def get_ARIMAX_prediction(set_dir, card_file, datafile, write_data, make_graph, 
 def set_prediction_recap_launch():
     for set_dir in set_dirs:
 
-        if not os.path.exists(set_dir):
-            os.makedirs(set_dir)
         prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
 
         price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]

@@ -1,11 +1,10 @@
+import json
 import os
 import shutil
-from pprint import pprint
 from os import listdir
 from os.path import isfile, join
-from data_builder import get_data_location
-import json
 
+from data_parsing.data_builder import get_data_location
 
 basepath = get_data_location() + "DATA\\MTGOprices\\Modern\\"
 treshold = 0.3

@@ -1,9 +1,8 @@
 # coding=utf-8
-from TournamentReader import *
-from GraphMaker import *
 import os
-import copy
 
+from data_parsing.tournament_reader import *
+from graphics.graph_maker import *
 
 """ make backward-average of tournament data"""
 average = False
@@ -24,7 +23,27 @@ releases = {"AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "S
 card_count = {"AER": 184, "KLD": 264, "EMN": 205, "SOI": 297, "OGW": 184,  "BFZ": 274}
 standard_exit = {"DTK": 1476050400000}
 
+feature_to_index_table = {"prices": 0, "usage": 1, "budget": 2, "packs": 3, "exit": 4, "allG": 5, "ptExps": 6, "modern": 7, "MACD": 8, "RSI": 9}
 
+
+def get_feature_to_index_map():
+    return feature_to_index_table
+
+
+def get_raw_prices(set_dir, card_file):
+    with open(get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
+        rawjson = json.load(datafile)
+    timePriceList_raw = rawjson["data"]
+    if cut_start:
+        timePriceList_raw = timePriceList_raw[cut_size:]
+    return timePriceList_raw
+
+
+def get_prices(set_dir, card_file):
+    timePriceList_raw = get_raw_prices(set_dir, card_file)
+    for tupla in timePriceList_raw:
+        tupla[0] = datetime.datetime.fromtimestamp(tupla[0]/1000.0)
+    return timePriceList_raw
 
 
 def get_base_timeseries(set_dir, card_file, up_to_date = datetime.datetime.now(), normalized = True):
@@ -39,30 +58,11 @@ def get_base_timeseries(set_dir, card_file, up_to_date = datetime.datetime.now()
     MACD_index = []
     RSI_index = []
 
-    with open(get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir + "\\" + card_file) as datafile:
-        rawjson = json.load(datafile)
-    timePriceList_raw = rawjson["data"]
-
-    """remove prices of the first 15 days due to the high frequency"""
-    if cut_start:
-        timePriceList_raw = timePriceList_raw[cut_size:]
+    timePriceList_raw = get_raw_prices(set_dir, card_file)
 
     """uso derivata dei prezzi invece che i prezzi, derivata rispetto alla media degli ultimi deriv_avg_n valori"""
     if derivative:
-        copy_list = copy.deepcopy(timePriceList_raw)
-        for i in range(len(timePriceList_raw)):
-            counted = 0
-            avg = 0
-            for j in range (1, deriv_avg_n):
-                if (i -  j > 0):
-                    avg += copy_list[i - j][1]
-                    counted += 1
-            if counted > 0:
-                avg = avg / counted
-            else:
-                avg = copy_list[0][1]
-            delta = copy_list[i][1] - avg
-            timePriceList_raw[i][1] = delta
+        differentiate_timeseries(timePriceList_raw)
 
     """uniformo le date in millisec del dataset dei prezzi a oggetti py datetime"""
     closer_future_date_data = [datetime.datetime.now(), -1]

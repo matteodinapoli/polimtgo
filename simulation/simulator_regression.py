@@ -1,16 +1,9 @@
 # coding=utf-8
-from data_builder import *
-import datetime
-from predictor_ARIMAX import get_ARIMAX_prediction
-from predictor_ARIMAX import save_feature_selection_table
-from os import listdir
-from os.path import isfile, join
-import os
-import gc
-import pandas as pd
-import pyflux as pf
-import numpy as np
-import bisect
+
+from data_parsing.data_builder import *
+
+from linear_regression.predictor_ARIMAX import get_ARIMAX_prediction
+from linear_regression.predictor_ARIMAX import save_feature_selection_table
 
 releases = {"AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
 
@@ -39,7 +32,6 @@ BH_stopgain_threshold = 0.3
 def find_current_time_key(dict, time):
     to_return =  min(dict.keys(), key=lambda x: abs(x - time) if (x - time) < datetime.timedelta(0) else 1000*abs(x - time))
     return to_return
-
 
 def find_next_time_key(dict, time):
     to_return =  min(dict.keys(), key=lambda x: abs(x - time) if (x - time) > datetime.timedelta(0) else 1000*abs(x - time))
@@ -86,8 +78,6 @@ def build_investment_map(now_date):
     evaluate_available_sets(now_date)
     for set_dir in set_dirs:
 
-        if not os.path.exists(set_dir):
-            os.makedirs(set_dir)
         prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
         price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
         for card_file in price_files:
@@ -102,7 +92,8 @@ def build_investment_map(now_date):
                 """confidence intervals 10"""
                 confidence_delta_10 = df_list[2][1]
                 predicted_prices_10 = {key: val - confidence_delta_10 for key, val in predicted_prices.copy().items()}
-                data[os.path.splitext(card_file)[0]] = [prices, predicted_prices, predicted_prices_10]
+                card_name = os.path.splitext(card_file)[0]
+                data[card_name] = [prices, predicted_prices, predicted_prices_10]
             else:
                 if os.path.splitext(card_file)[0] in data:
                     pprint("ATTENZIONE: PREDICTION DI " + str(card_file) + " NON HA ELABORATO UN RISULTATO\n")
@@ -260,7 +251,7 @@ def get_spread(price):
 
 
 if __name__ == "__main__":
-    with open(get_data_location() + "Simulation_StopLoss3_conf10_30_30.txt", "w") as datafile:
+    with open(get_data_location() + "Simulation_StopLoss5_conf10_30_30.txt", "w") as datafile:
         for step in range(simulation_steps):
 
             a = datetime.datetime.now()

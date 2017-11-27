@@ -1,10 +1,10 @@
-from plotly import tools
+import datetime
+from os.path import join
+
 import plotly
 import plotly.graph_objs as go
-import datetime
-from os.path import isfile, join
-from TournamentReader import get_data_location
-
+from plotly import tools
+from data_parsing.tournament_reader import get_data_location
 
 base_path = get_data_location() + "DATA\\"
 
