@@ -49,9 +49,10 @@ def get_file_name(AR, MA):
 def sequential_forward_feature_selection(df, prices, set_dir, card):
 
     load_feature_selection_table(set_dir)
-    if card in feature_selection_table:
-        formula = feature_selection_table[card]
-        return formula
+    if set_dir in feature_selection_table:
+        if card in feature_selection_table[set_dir]:
+            formula = feature_selection_table[set_dir][card]
+            return formula
 
     features_raw = df.columns.values.tolist()
     features_raw.remove('prices')
@@ -97,28 +98,29 @@ def sequential_forward_feature_selection(df, prices, set_dir, card):
                 improving = True
                 break
 
-    feature_selection_table[card] = formula
+    feature_selection_table[set_dir][card] = formula
     return formula
 
 
-def get_feature_selection_table():
-    return feature_selection_table
+def get_feature_selection_table(set_dir):
+    return feature_selection_table[set_dir]
 
 def clear_feature_selection_table():
     feature_selection_table.clear()
 
 def load_feature_selection_table(set_dir):
     global feature_selection_table
-    if not feature_selection_table:
+    if set_dir not in feature_selection_table:
         if os.path.isfile(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json"):
             with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json") as jsonMap:
-                feature_selection_table = json.load(jsonMap)
+                feature_selection_table[set_dir] = json.load(jsonMap)
 
 def save_feature_selection_table(set_dir):
-    jsonData = get_feature_selection_table()
-    with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json", 'w') as outfile:
-        json.dump(jsonData, outfile, sort_keys=True, indent=4, ensure_ascii=True)
-    clear_feature_selection_table()
+    for set_dir, table in feature_selection_table.copy().items():
+        jsonData = table
+        with open(get_data_location() + "PREDICTIONS\\" + set_dir + "\\" + "FEATURE_SELECTION.json", 'w') as outfile:
+            json.dump(jsonData, outfile, sort_keys=True, indent=4, ensure_ascii=True)
+        clear_feature_selection_table()
 
 
 def get_confidence_deltas(model):

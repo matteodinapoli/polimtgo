@@ -33,7 +33,7 @@ class MTGOenv(Environment):
         observation_space = spaces.Box(low=-high, high=high)
         action_space = spaces.Discrete(2)
         horizon = 100000
-        gamma = .995
+        gamma = .999
         mdp_info = MDPInfo(observation_space, action_space, gamma, horizon)
 
         super(MTGOenv, self).__init__(mdp_info)
@@ -98,10 +98,10 @@ class MTGOenv(Environment):
         card_name = os.path.splitext(self.card_file)[0]
 
         if not self.card_features:
-            feature_selection_table = get_feature_selection_table()
+            feature_selection_table = get_feature_selection_table(self.set_dir)
             if not feature_selection_table:
                 load_feature_selection_table(self.set_dir)
-                feature_selection_table = get_feature_selection_table()
+                feature_selection_table = get_feature_selection_table(self.set_dir)
             formula = feature_selection_table[card_name]
             features = re.compile('[A-Za-z]+').findall(formula)
             features.sort()

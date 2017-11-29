@@ -47,7 +47,6 @@ class MTGO_Q_learner:
     def get_Q_prediction(self, now_date, has_the_card):
 
         price, state, absorbing = self.mdp.load_next_data(False, now_date)
-        pprint(state)
         if has_the_card:
             state.append(1)
         else:

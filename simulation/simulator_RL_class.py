@@ -6,7 +6,7 @@ from simulation.simulator import Simulator
 class Simulator_RL(Simulator):
     rl_predictors_map = {}
     test_mode = False
-    start = "2017-02-01 20:30:55"
+    start = "2017-01-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     sold_today = {}
 
@@ -22,7 +22,7 @@ class Simulator_RL(Simulator):
             for card_file in price_files:
                 card_name = os.path.splitext(card_file)[0]
                 """ consider only cards for which the feature selection table is defined"""
-                if card_name in get_feature_selection_table():
+                if card_name in get_feature_selection_table(set_dir):
                     """ train the FQI learner and store it """
                     if card_name not in self.rl_predictors_map:
                         predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.start)
@@ -32,7 +32,6 @@ class Simulator_RL(Simulator):
                     """ Q for possible buy action, having card = False """
                     Q_value, price = self.rl_predictors_map[card_name].get_Q_prediction(now_date, False)
                     self.data[card_name] = [price, Q_value[0]]
-
 
     def get_investment_margin_list(self, now_date):
         margin_list = []
@@ -48,6 +47,7 @@ class Simulator_RL(Simulator):
 
 
     def fill_investment_portfolio(self, margin_list, now_date):
+        #get_total_market_price_MACD()
         for margin_tupla in margin_list:
             card_name = margin_tupla[0]
             today_buy_price = margin_tupla[2]
