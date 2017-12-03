@@ -5,7 +5,7 @@ from simulation.simulator import Simulator
 
 class Simulator_RL(Simulator):
     rl_predictors_map = {}
-    test_mode = False
+    test_mode = True
     start = "2017-01-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     sold_today = {}
@@ -26,6 +26,7 @@ class Simulator_RL(Simulator):
                     """ train the FQI learner and store it """
                     if card_name not in self.rl_predictors_map:
                         predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.start)
+                        pprint("**** Learning " + str(card_name) + " model ****")
                         predictor.learn()
                         card_name = os.path.splitext(card_file)[0]
                         self.rl_predictors_map[card_name] = predictor

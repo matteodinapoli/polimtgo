@@ -24,6 +24,12 @@ class MTGOenv(Environment):
         self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
         self.end_date = datetime.datetime.strptime(train_end, "%Y-%m-%d %H:%M:%S")
 
+        # Running time optimization maps
+        self.seen_states = {}
+        self.now_date_to_index_conversions = {}
+        self.dates = []
+        self.prices = []
+
         # MDP parameters
         """ -1 == buy, 1 == sell"""
         self._discrete_actions = [-1., 1.]
@@ -41,7 +47,7 @@ class MTGOenv(Environment):
 
     def reset(self, state=None):
         if state is None:
-            price, features, abs = self.load_next_data(True)
+            price, features, abs = self.load_next_data(True, True)
             self._state = np.array(features)
             """ ownership of the card == 0 """
             self._state = np.append(self._state, 0)
@@ -52,9 +58,11 @@ class MTGOenv(Environment):
 
 
     def step(self, action):
+
         action = self._discrete_actions[action[0]]
 
-        price, features, absorbing = self.load_next_data(False, self.now_date)
+        price, features, absorbing = self.load_next_data(False, True, self.now_date)
+
         self.now_date += datetime.timedelta(hours=24)
 
         has_the_card = self._state[-1]
@@ -83,7 +91,7 @@ class MTGOenv(Environment):
 
 
 
-    def load_next_data(self, reset, now_date=None):
+    def load_next_data(self, reset, store_state, now_date=None):
 
         if reset:
             self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
@@ -107,49 +115,64 @@ class MTGOenv(Environment):
             features.sort()
             self.card_features = features
 
-        timePriceList = time_series[0]
-        dates = [x[0] for x in timePriceList]
-        prices = [x[1] for x in timePriceList]
+        if not self.dates or self.prices:
+            timePriceList = time_series[0]
+            self.dates = [x[0] for x in timePriceList]
+            self.prices = [x[1] for x in timePriceList]
+        dates = self.dates
+        prices = self.prices
 
         if self.now_date < dates[0]:
             self.now_date = dates[0]
             self.now_date = self.now_date.replace(hour=22, minute=0)
-            if not now_date: now_date = self.now_date
+            if not now_date:
+                now_date = self.now_date
 
-        actual_date = min(dates, key=lambda x: abs(x - now_date) if (x - now_date) < datetime.timedelta(0) else 1000 * abs(x - now_date))
-        data = {"dates": dates, "prices": prices}
-
-        for feat in self.card_features:
-            feat_index = get_feature_to_index_map()[feat]
-            double_list = time_series[feat_index]
-            data_list = [x[1] for x in double_list]
-            data[feat] = data_list
-
-        columns_df = self.card_features.copy().extend(('dates', 'prices'))
-        df = pd.DataFrame(data, columns= columns_df)
-        df.index = df['dates']
-        del df['dates']
-
-        price_pair = df.loc[:actual_date, "prices"].tail(2)
-        if len(price_pair) > 1:
-            price = price_pair[1]
-            prev_price = price_pair[0]
+        if not now_date in self.now_date_to_index_conversions:
+            actual_date = min(dates, key=lambda x: abs(x - now_date) if (x - now_date) < datetime.timedelta(0) else 1000 * abs(x - now_date))
+            self.now_date_to_index_conversions[now_date] = actual_date
         else:
-            price = price_pair[0]
-            prev_price = price
+            actual_date = self.now_date_to_index_conversions[now_date]
 
-        state = []
-        for feat in self.card_features:
-            if feat == 'prices':
-                """ AR1 feature """
-                state.append(prev_price)
+        if store_state and actual_date in self.seen_states:
+            return self.seen_states[actual_date]
+        else:
+            data = {"dates": dates, "prices": prices}
+
+            for feat in self.card_features:
+                feat_index = get_feature_to_index_map()[feat]
+                double_list = time_series[feat_index]
+                data_list = [x[1] for x in double_list]
+                data[feat] = data_list
+
+            columns_df = self.card_features.copy().extend(('dates', 'prices'))
+            df = pd.DataFrame(data, columns= columns_df)
+
+            df.index = df['dates']
+
+            price_pair = df.loc[:actual_date, "prices"].tail(2)
+            if len(price_pair) > 1:
+                price = price_pair[1]
+                prev_price = price_pair[0]
             else:
-                """ exogenous features """
-                state.append(df.loc[actual_date, feat])
+                price = price_pair[0]
+                prev_price = price
 
-        time_diff = self.end_date - actual_date
-        """ state is absorbing and final if difference of actual date and end of training is lesser than one day """
-        absorb = time_diff/datetime.timedelta(days=1) < 1 or actual_date > self.end_date
+            state = []
+            for feat in self.card_features:
+                if feat == 'prices':
+                    """ AR1 feature """
+                    state.append(prev_price)
+                else:
+                    """ exogenous features """
+                    state.append(df.loc[actual_date, feat])
+
+            time_diff = self.end_date - actual_date
+            """ state is absorbing and final if difference of actual date and end of training is lesser than one day """
+            absorb = time_diff/datetime.timedelta(days=1) < 1 or actual_date > self.end_date
+
+            if store_state:
+                self.seen_states[actual_date] = price, state, absorb
 
         return price, state, absorb
 
