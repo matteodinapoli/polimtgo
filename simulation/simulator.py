@@ -33,13 +33,13 @@ class Simulator:
         to_return =  min(dict.keys(), key=lambda x: abs(x - time) if (x - time) > datetime.timedelta(0) else 1000*abs(x - time))
         return to_return
 
-    def evaluate_available_sets(self, now_date):
+    def evaluate_available_sets(self):
         if self.test_mode:
             self.set_dirs = ["TST"]
             return
         for set_name, timestamp in releases.copy().items():
             set_date = datetime.datetime.fromtimestamp(timestamp/1000.0)
-            if now_date - set_date > datetime.timedelta(days=75):
+            if self.now_date - set_date > datetime.timedelta(days=75):
                 if set_name not in self.set_dirs:
                     self.set_dirs.append(set_name)
         pprint(self.set_dirs)
@@ -80,7 +80,7 @@ class Simulator:
         if not self.owned_cards[card_name]:
             del self.owned_cards[card_name]
 
-    def assess_portfolio(self, now_date):
+    def assess_portfolio(self):
         current_patrimony = 0
         for card_name, purchase_dict in self.owned_cards.copy().items():
             today_sell_price = self.get_price_from_data_map(card_name)
@@ -161,12 +161,12 @@ class Simulator:
                         self.datafile.write("\n\n")
                         self.datafile.write("********** " + str(self.now_date) + "**********\n")
 
-                        self.build_investment_map(self.now_date)
-                        margin_list = self.get_investment_margin_list(self.now_date)
-                        self.manage_owned_cards(margin_list, self.now_date)
+                        self.build_investment_map()
+                        margin_list = self.get_investment_margin_list()
+                        self.manage_owned_cards(margin_list)
                         if step < self.simulation_steps - 1:
-                            self.fill_investment_portfolio(margin_list, self.now_date)
-                        self.assess_portfolio(self.now_date)
+                            self.fill_investment_portfolio(margin_list)
+                        self.assess_portfolio()
 
                         pprint("CARTE POSSEDUTE")
                         self.datafile.write("CARTE POSSEDUTE\n")

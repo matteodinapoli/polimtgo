@@ -5,7 +5,7 @@ from simulation.simulator import Simulator
 
 class Simulator_RL(Simulator):
     rl_predictors_map = {}
-    test_mode = True
+    test_mode = False
     start = "2017-01-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     sold_today = {}
@@ -13,8 +13,8 @@ class Simulator_RL(Simulator):
     def get_datafile_name(self):
         return "Simulation_FQI"
 
-    def build_investment_map(self, now_date):
-        self.evaluate_available_sets(now_date)
+    def build_investment_map(self):
+        self.evaluate_available_sets()
         for set_dir in self.set_dirs:
             load_feature_selection_table(set_dir)
             prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
@@ -31,10 +31,10 @@ class Simulator_RL(Simulator):
                         card_name = os.path.splitext(card_file)[0]
                         self.rl_predictors_map[card_name] = predictor
                     """ Q for possible buy action, having card = False """
-                    Q_value, price = self.rl_predictors_map[card_name].get_Q_prediction(now_date, False)
+                    Q_value, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, False)
                     self.data[card_name] = [price, Q_value[0]]
 
-    def get_investment_margin_list(self, now_date):
+    def get_investment_margin_list(self):
         margin_list = []
         for card_name, info in self.data.copy().items():
             price = info[0]
@@ -47,7 +47,7 @@ class Simulator_RL(Simulator):
         return margin_list
 
 
-    def fill_investment_portfolio(self, margin_list, now_date):
+    def fill_investment_portfolio(self, margin_list):
         #get_total_market_price_MACD()
         for margin_tupla in margin_list:
             card_name = margin_tupla[0]
@@ -61,11 +61,11 @@ class Simulator_RL(Simulator):
                     self.buy_cards(card_name, quantity, today_buy_price)
 
 
-    def manage_owned_cards(self, margin_list, now_date):
+    def manage_owned_cards(self, margin_list):
         self.sold_today.clear()
         for card_name, price_key in self.owned_cards.copy().items():
 
-            Q_value, today_sell_price = self.rl_predictors_map[card_name].get_Q_prediction(now_date, True)
+            Q_value, today_sell_price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, True)
             Q_no_action = Q_value[0][0]
             Q_selling = Q_value[0][1]
             today_sell_price -= get_spread(today_sell_price)

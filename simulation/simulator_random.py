@@ -13,8 +13,8 @@ class Simulator_Random(Simulator):
     def get_datafile_name(self):
         return "Simulation_RANDOM"
 
-    def build_investment_map(self, now_date):
-        self.evaluate_available_sets(now_date)
+    def build_investment_map(self):
+        self.evaluate_available_sets()
         for set_dir in self.set_dirs:
             prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
             price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
@@ -26,7 +26,7 @@ class Simulator_Random(Simulator):
                 self.data[card_name] = prices_dict
 
 
-    def get_investment_margin_list(self, now_date):
+    def get_investment_margin_list(self):
         margin_list = []
         for i in range(self.N_of_investments):
             card_name, price_dict = random.choice(list(self.data.items()))
@@ -36,7 +36,7 @@ class Simulator_Random(Simulator):
         return margin_list
 
 
-    def fill_investment_portfolio(self, margin_list, now_date):
+    def fill_investment_portfolio(self, margin_list):
         for margin_tupla in margin_list:
             card_name = margin_tupla[0]
             today_buy_price = margin_tupla[1]
@@ -47,7 +47,7 @@ class Simulator_Random(Simulator):
                 self.buy_cards(card_name, quantity, today_buy_price)
 
 
-    def manage_owned_cards(self, margin_list, now_date):
+    def manage_owned_cards(self, margin_list):
         for card_name, price_key in self.owned_cards.copy().items():
 
             today_sell_price = self.get_price_from_data_map(card_name)
