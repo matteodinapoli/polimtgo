@@ -5,7 +5,7 @@ from data_parsing.data_builder import *
 
 class Simulator:
 
-    releases = {"TST":1476050400000, "AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
+    releases = {"TST":1444600800000, "AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
     test_mode = False
     #set_dirs = ["SOI", "EMN", "OGW", "BFZ", "KLD"];
     set_dirs = []
@@ -13,6 +13,7 @@ class Simulator:
     data = {}
     transactions = {}
 
+    starting_budget = 200
     budget = 200
     max_card_pieces = 20
     owned_cards = {}
@@ -23,6 +24,19 @@ class Simulator:
     BH_stoploss_threshold = 0
     BH_stopgain_threshold = 0
     datafile = None
+
+    """ for cross-validation """
+    episodes_n = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    actual_episodes_n = 1000
+    results_episodes = {100: [], 200: [], 300: [], 400: [], 500: [], 600: [], 700: [], 800: [], 900: [], 1000: []}
+
+
+    def init_params_for_validation(self):
+        self.BH_stoploss_threshold_l = [0]
+        self.BH_stopgain_threshold_l = [0]
+        self.budget = 1000
+        self.starting_budget = 1000
+        self.simulation_steps = 180
 
 
     def find_current_time_key(self, dict, time):
@@ -51,9 +65,9 @@ class Simulator:
                 loss = past_price - today_sell_price
                 self.sell_cards(card_name, past_price, today_sell_price)
                 if card_name in self.transactions:
-                    self.transactions[card_name].append( (quantity, str(-loss)) )
+                    self.transactions[card_name].append( [quantity, str(-loss)] )
                 else:
-                    self.transactions[card_name] = [ (quantity, str(-loss)) ]
+                    self.transactions[card_name] = [ [quantity, str(-loss)] ]
 
     def buy_cards(self, card_name, quantity, total_price):
         pprint("ACQUISTO DI " + str(quantity) + " " + str(card_name) + " A " + str(total_price) + " A PEZZO")
@@ -150,7 +164,7 @@ class Simulator:
                 self.BH_stopgain_threshold = stopgain
                 self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
                 self.owned_cards.clear()
-                self.budget = 200
+                self.budget = self.starting_budget
                 pprint("********** SIMULATION START **********")
                 with open(get_data_location()+ "SIM\\" + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
                     for step in range(self.simulation_steps):
@@ -180,6 +194,25 @@ class Simulator:
                         if step == self.simulation_steps - 1:
                             self.sell_all_owned_cards()
                             self.datafile.write("LISTA TRANSAZIONI\n")
+                            self.datafile.write(str(self.transactions) + "\n")
+                            pos = 0
+                            pos_n = 0
+                            neg = 0
+                            neg_n = 0
+                            for card, list in self.transactions.copy().items():
+                                for tupla in list:
+                                    gain = tupla[1] * tupla[0]
+                                    if gain > 0:
+                                        pos += gain
+                                        pos_n += 1
+                                    else:
+                                        neg += gain
+                                        neg_n += 1
+                            self.results_episodes[self.actual_episodes_n].append([self.budget, pos_n, pos, neg_n, neg])
+                            self.datafile.write("Transazioni positive: " + str(pos_n)  +"\n")
+                            self.datafile.write("Guadagno totale: " + str(pos) + "\n")
+                            self.datafile.write("Transazioni negative: " + str(neg_n) + "\n")
+                            self.datafile.write("Perdita totale: " + str(neg) + "\n")
                             self.datafile.write(str(self.transactions) + "\n")
                             self.datafile.write("BUDGET FINALE\n")
                             self.datafile.write(str(self.budget) + "\n")

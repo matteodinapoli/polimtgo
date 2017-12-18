@@ -14,6 +14,7 @@ class Simulator_Regression(Simulator):
     start = "2017-01-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     test_mode = True
+    use_confidence_interval = True
 
 
 
@@ -32,7 +33,10 @@ class Simulator_Regression(Simulator):
                 if next_key in dicts_list[1]:
                     tomorrow_sell_price = dicts_list[1][next_key]
                     tomorrow_sell_price_conf_10 = dicts_list[2][next_key]
-                    margin = tomorrow_sell_price_conf_10 - today_buy_price
+                    if self.use_confidence_interval:
+                        margin = tomorrow_sell_price_conf_10 - today_buy_price
+                    else:
+                        margin = tomorrow_sell_price - today_buy_price
                     margin_list.append([card_name, margin, today_buy_price, tomorrow_sell_price, tomorrow_sell_price_conf_10])
                 else:
                     pprint("PREDICTION DI DOMANI " + str(next_key) + " NON PRESENTE PER " + str(card_name))
@@ -75,9 +79,12 @@ class Simulator_Regression(Simulator):
         for margin_tupla in margin_list:
 
             card_name = margin_tupla[0]
-            margin = margin_tupla[1]  #BUILT ON THE LOW CONFIDENCE INTERVAL TOMORROW SELL PRICE!
+            margin = margin_tupla[1]
             today_buy_price = margin_tupla[2]
-            tomorrow_sell_price = margin_tupla[3]
+            if self.use_confidence_interval:
+                tomorrow_sell_price = margin_tupla[4]
+            else:
+                tomorrow_sell_price = margin_tupla[3]
 
             if margin > self.buy_threshold + self.get_spread(tomorrow_sell_price):
                 """ acquistiamo """
@@ -91,12 +98,23 @@ class Simulator_Regression(Simulator):
     def manage_owned_cards(self, margin_list):
         for card_name, price_key in self.owned_cards.copy().items():
             card_map = self.data[card_name]
+
+            """ selling we always use the not confidence interval reduced tomorrow sell price prediction 
+            to change it, put to 2 next_price_index in the if part """
+            if self.use_confidence_interval:
+                next_price_index = 1
+            else:
+                next_price_index = 1
+
             current_key = self.find_current_time_key(card_map[0], self.now_date)
-            next_key = self.find_next_time_key(card_map[1], self.now_date)
+            next_key = self.find_next_time_key(card_map[next_price_index], self.now_date)
+
             today_sell_price = card_map[0][current_key]
             today_sell_price -= self.get_spread(today_sell_price)
-            tomorrow_sell_price = card_map[1][next_key]
+
+            tomorrow_sell_price = card_map[next_price_index][next_key]
             tomorrow_sell_price -= self.get_spread(tomorrow_sell_price)
+
             for past_price, quantity in price_key.copy().items():
                 loss = past_price - today_sell_price
                 loss_percentage = loss/float(past_price)
@@ -105,7 +123,7 @@ class Simulator_Regression(Simulator):
                     if card_name in self.transactions:
                         self.transactions[card_name].append([quantity, -loss])
                     else:
-                        self.transactions[card_name] = [quantity, -loss]
+                        self.transactions[card_name] = [[quantity, -loss]]
 
     def get_price_from_data_map(self, card_name):
         card_map = self.data[card_name]

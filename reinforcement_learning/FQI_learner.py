@@ -11,8 +11,9 @@ from reinforcement_learning.FQI_environment import *
 class MTGO_Q_learner:
     agent = None
 
-    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="1476050400000", train_end="2016-12-01 20:30:55"):
+    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="1476050400000", train_end="2016-12-01 20:30:55", episodes = 1000):
         self.mdp = MTGOenv(set_dir, card_file, train_start, train_end)
+        self.episodes_n = episodes
 
 
     def learn(self):
@@ -41,7 +42,7 @@ class MTGO_Q_learner:
         # Algorithm
         core = Core(self.agent, self.mdp)
         # Train
-        core.learn(n_iterations=1, how_many=1000, n_fit_steps=20, iterate_over='episodes')
+        core.learn(n_iterations=1, how_many= self.episodes_n, n_fit_steps=20, iterate_over='episodes')
 
 
     def get_Q_prediction(self, now_date, has_the_card):

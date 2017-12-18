@@ -8,7 +8,7 @@ from mushroom.utils import spaces
 from data_parsing.data_builder import *
 from linear_regression.predictor_ARIMAX import get_feature_selection_table
 from linear_regression.predictor_ARIMAX import load_feature_selection_table
-from simulation.simulator_regression import get_spread
+from simulation.simulator import Simulator
 
 
 class MTGOenv(Environment):
@@ -23,6 +23,7 @@ class MTGOenv(Environment):
         self.start = train_start
         self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
         self.end_date = datetime.datetime.strptime(train_end, "%Y-%m-%d %H:%M:%S")
+        self.spread_getter = Simulator()
 
         # Running time optimization maps
         self.seen_states = {}
@@ -62,7 +63,6 @@ class MTGOenv(Environment):
         action = self._discrete_actions[action[0]]
 
         price, features, absorbing = self.load_next_data(False, True, self.now_date)
-
         self.now_date += datetime.timedelta(hours=24)
 
         has_the_card = self._state[-1]
@@ -73,7 +73,7 @@ class MTGOenv(Environment):
 
         if reward > 0:
             """ selling """
-            reward -= get_spread(price)
+            reward -= self.spread_getter.get_spread(price)
             """ reward = 0 if doesn't own the card to sell """
             reward = reward * has_the_card
         else:
@@ -162,7 +162,9 @@ class MTGOenv(Environment):
             for feat in self.card_features:
                 if feat == 'prices':
                     """ AR1 feature """
-                    state.append(prev_price)
+                    # SUBSTITUTED WITH PRICE OF CURRENT DAY
+                    #state.append(prev_price)
+                    state.append(price)
                 else:
                     """ exogenous features """
                     state.append(df.loc[actual_date, feat])
