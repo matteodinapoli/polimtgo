@@ -49,7 +49,7 @@ class Simulator_RL(Simulator):
 
 
     def fill_investment_portfolio(self, margin_list):
-        #get_total_market_price_MACD()
+        get_total_market_price_MACD()
         for margin_tupla in margin_list:
             card_name = margin_tupla[0]
             today_buy_price = margin_tupla[2]
@@ -130,14 +130,10 @@ class Simulator_RL(Simulator):
 
 
 
-
-
-
-
-
 if __name__ == "__main__":
     sim = Simulator_RL()
     sim.validate_n_episodes()
+    #sim.launch()
 
 
 

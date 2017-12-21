@@ -3,6 +3,7 @@ import os
 
 from data_parsing.tournament_reader import *
 from graphics.graph_maker import *
+from linear_regression.predictor_ARIMAX import *
 
 """ make backward-average of tournament data"""
 average = False
@@ -21,6 +22,7 @@ deriv_avg_n = 5
 
 releases = {"AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
 card_count = {"AER": 184, "KLD": 264, "EMN": 205, "SOI": 297, "OGW": 184,  "BFZ": 274}
+set_dirs = ["SOI", "EMN", "OGW", "BFZ", "KLD", "AER"];
 standard_exit = {"DTK": 1476050400000}
 
 feature_to_index_table = {"prices": 0, "usage": 1, "budget": 2, "packs": 3, "exit": 4, "allG": 5, "ptExps": 6, "modern": 7, "MACD": 8, "RSI": 9}
@@ -32,18 +34,42 @@ def get_feature_to_index_map():
 
 
 def get_total_market_price_MACD():
-
+    build_total_market_price_map()
     market_price_list = []
     for key, value in total_market_price.copy().items():
         avg = value[1]/float(value[0])
         market_price_list.append([key, avg])
+    market_price_list.sort(key=lambda x: x[0])
     ma_short = [x[1] for x in build_exponential_moving_average(market_price_list, 12)]
     ma_long = [x[1] for x in build_exponential_moving_average(market_price_list, 26)]
     signal_line_p = [s - l for s, l in zip(ma_short, ma_long)]
     signal_line = [[market_price_list[i][0], signal_line_p[i]] for i in range(len(market_price_list))]
     ma_signal = build_exponential_moving_average(signal_line, 9)
-    ma_signal.sort(key=lambda x: x[0])
     return ma_signal
+
+
+def build_total_market_price_map():
+    for set_dir in set_dirs:
+        load_feature_selection_table(set_dir)
+        prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
+        price_files = [f for f in listdir(prices_path) if isfile(join(prices_path, f))]
+        for card_file in price_files:
+            card_name = os.path.splitext(card_file)[0]
+            """ consider only cards for which the feature selection table is defined"""
+            if card_name in get_feature_selection_table(set_dir):
+                timePriceList_raw = get_raw_prices(set_dir, card_file)
+                last_day_seen = datetime.datetime.fromtimestamp(86400)
+                for tupla in timePriceList_raw:
+                    tupla[0] = datetime.datetime.fromtimestamp(tupla[0] / 1000.0)
+                    key_string = tupla[0].strftime('%y%m%d')
+                    """ remove duplicate days (24h sampling, to uniform with older data) and remove dates after simulation start (up_to_date)"""
+                    if tupla[0].day != last_day_seen.day:
+                        if key_string in total_market_price:
+                            total_market_price[key_string][0] += 1
+                            total_market_price[key_string][1] += tupla[1]
+                        else:
+                            total_market_price[key_string] = [1, tupla[1]]
+                        last_day_seen = tupla[0]
 
 
 def get_raw_prices(set_dir, card_file):
@@ -86,20 +112,13 @@ def get_base_timeseries(set_dir, card_file, up_to_date = datetime.datetime.now()
     last_day_seen = datetime.datetime.fromtimestamp(86400)
     for tupla in timePriceList_raw:
         tupla[0] = datetime.datetime.fromtimestamp(tupla[0]/1000.0)
-        key_string = tupla[0].strftime('%y%m%d')
         """ remove duplicate days (24h sampling, to uniform with older data) and remove dates after simulation start (up_to_date)"""
         if tupla[0].day != last_day_seen.day:
-            if key_string in total_market_price:
-                total_market_price[key_string][0] += 1
-                total_market_price[key_string][1] += tupla[1]
-            else:
-                total_market_price[key_string] = [1, tupla[1]]
             if tupla[0] < up_to_date:
                 timePriceList.append(tupla)
                 last_day_seen = tupla[0]
                 if abs(tupla[0] - up_to_date) < abs(closer_future_date_data[0] - up_to_date) and tupla[0] - up_to_date > datetime.timedelta(0):
                     closer_future_date_data = tupla
-
 
     if len(timePriceList) > 0:
 
@@ -402,3 +421,5 @@ def differentiate_timeseries(time_serie):
         time_serie[i][1] = delta
 
 
+if __name__ == "__main__":
+    get_total_market_price_MACD()

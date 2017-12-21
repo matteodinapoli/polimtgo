@@ -26,9 +26,9 @@ class Simulator:
     datafile = None
 
     """ for cross-validation """
-    episodes_n = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    episodes_n = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     actual_episodes_n = 1000
-    results_episodes = {100: [], 200: [], 300: [], 400: [], 500: [], 600: [], 700: [], 800: [], 900: [], 1000: []}
+    results_episodes = {10: [], 20: [], 30: [], 40: [], 50: [], 60: [], 70: [], 80: [], 90: [], 100: [], 200: [], 300: [], 400: [], 500: [], 600: [], 700: [], 800: [], 900: [], 1000: []}
 
 
     def init_params_for_validation(self):
@@ -65,9 +65,9 @@ class Simulator:
                 loss = past_price - today_sell_price
                 self.sell_cards(card_name, past_price, today_sell_price)
                 if card_name in self.transactions:
-                    self.transactions[card_name].append( [quantity, str(-loss)] )
+                    self.transactions[card_name].append( [quantity, -loss] )
                 else:
-                    self.transactions[card_name] = [ [quantity, str(-loss)] ]
+                    self.transactions[card_name] = [ [quantity, -loss] ]
 
     def buy_cards(self, card_name, quantity, total_price):
         pprint("ACQUISTO DI " + str(quantity) + " " + str(card_name) + " A " + str(total_price) + " A PEZZO")
@@ -165,6 +165,7 @@ class Simulator:
                 self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
                 self.owned_cards.clear()
                 self.budget = self.starting_budget
+                self.transactions = {}
                 pprint("********** SIMULATION START **********")
                 with open(get_data_location()+ "SIM\\" + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
                     for step in range(self.simulation_steps):
