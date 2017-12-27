@@ -24,6 +24,7 @@ class MTGOenv(Environment):
         self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
         self.end_date = datetime.datetime.strptime(train_end, "%Y-%m-%d %H:%M:%S")
         self.spread_getter = Simulator()
+        self.total_price_MACD = None
 
         # Running time optimization maps
         self.seen_states = {}
@@ -138,16 +139,14 @@ class MTGOenv(Environment):
             return self.seen_states[actual_date]
         else:
             data = {"dates": dates, "prices": prices}
-
             for feat in self.card_features:
                 feat_index = get_feature_to_index_map()[feat]
                 double_list = time_series[feat_index]
                 data_list = [x[1] for x in double_list]
                 data[feat] = data_list
 
-            columns_df = self.card_features.copy().extend(('dates', 'prices'))
+            columns_df = self.card_features.copy().extend(('dates', 'prices', 'totalMACD'))
             df = pd.DataFrame(data, columns= columns_df)
-
             df.index = df['dates']
 
             price_pair = df.loc[:actual_date, "prices"].tail(2)
@@ -168,6 +167,12 @@ class MTGOenv(Environment):
                 else:
                     """ exogenous features """
                     state.append(df.loc[actual_date, feat])
+
+            if not self.total_price_MACD:
+                self.total_price_MACD = get_total_market_price_MACD_dict()
+            key_string = actual_date.strftime('%y%m%d')
+            total_market_indicator = self.total_price_MACD[key_string]
+            state.append(total_market_indicator)
 
             time_diff = self.end_date - actual_date
             """ state is absorbing and final if difference of actual date and end of training is lesser than one day """

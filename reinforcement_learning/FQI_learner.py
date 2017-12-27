@@ -56,6 +56,35 @@ class MTGO_Q_learner:
         return self.agent.approximator.predict(np_state), price
 
 
+    def get_Q_error(self, now_date, end_date, has_the_card):
+        reward = 0
+        Q_to_evaluate = None
+        while now_date < end_date:
+            Q_value, price = self.get_Q_prediction(now_date, has_the_card)
+            Q_buy_or_no_action = Q_value[0][0]
+            Q_sell_or_no_action = Q_value[0][1]
+            if not Q_to_evaluate:
+                Q_to_evaluate = max(Q_buy_or_no_action, Q_sell_or_no_action)
+            if not has_the_card:
+                if Q_buy_or_no_action > Q_sell_or_no_action:
+                    has_the_card = True
+                    reward -= price
+            else:
+                if Q_sell_or_no_action > Q_buy_or_no_action:
+                    has_the_card = False
+                    reward += (price - self.mdp.spread_getter.get_spread(price))
+            now_date += datetime.timedelta(hours=24)
+
+        """ sell the card at the end if still possess it """
+        if has_the_card:
+            has_the_card = False
+            Q_value, price = self.get_Q_prediction(now_date, has_the_card)
+            reward += (price - self.mdp.spread_getter.get_spread(price))
+
+        return abs(Q_to_evaluate - reward)
+
+
+
 
 if __name__ == '__main__':
     """#Js = Parallel(n_jobs=-1)(delayed(learner.learn)() for _ in range(n_experiment))

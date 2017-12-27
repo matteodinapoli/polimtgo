@@ -6,10 +6,11 @@ from simulation.simulator import Simulator
 class Simulator_RL(Simulator):
     rl_predictors_map = {}
     test_mode = True
-    start = "2016-06-01 20:30:55"
+    start = "2016-04-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     sold_today = {}
     validation_reps = 10
+    Q_threshold = 0.1
 
     def get_datafile_name(self):
         return "Simulation_FQI"
@@ -35,24 +36,27 @@ class Simulator_RL(Simulator):
                     Q_value, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, False)
                     self.data[card_name] = [price, Q_value[0]]
 
+
     def get_investment_margin_list(self):
         margin_list = []
         for card_name, info in self.data.copy().items():
             price = info[0]
             Q_buying = info[1][0]
             Q_no_action = info[1][1]
-            if Q_buying > Q_no_action:
-                margin_list.append([card_name, Q_buying, price])
-        margin_list.sort(key=lambda x: x[1], reverse=True)
+            threshold = Q_buying * self.Q_threshold
+            delta = Q_buying - Q_no_action
+            if Q_buying > 0 and delta > threshold:
+                margin_list.append([card_name, Q_buying, Q_no_action, price])
+        """ sorted by difference of the two Q values """
+        margin_list.sort(key=lambda x: x[1] - x[2], reverse=True)
         self.datafile.write(str(margin_list) + "\n")
         return margin_list
 
 
     def fill_investment_portfolio(self, margin_list):
-        get_total_market_price_MACD()
         for margin_tupla in margin_list:
             card_name = margin_tupla[0]
-            today_buy_price = margin_tupla[2]
+            today_buy_price = margin_tupla[3]
             """ buying using all budget on ordered Q_values one card after another """
             if card_name not in self.sold_today:
                 quantity = int(self.budget / today_buy_price)
@@ -127,13 +131,41 @@ class Simulator_RL(Simulator):
                 validation_file.write("Perdita totale: " + str(neg) + "\n")
 
 
+    def validate_Q_value(self):
+        with open(get_data_location() + "SIM\\" + "Q_validation_result.txt", "w") as validation_file:
+            validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
+            for episodes in self.episodes_n:
+                self.actual_episodes_n = episodes
+                pprint("**** NUMERO DI EPISODI: " + str(episodes) + " ****")
+                validation_file.write("\n **** NUMERO DI EPISODI: " + str(episodes) + " ****\n")
+
+                self.process_validation(validation_file)
+
+
+    def process_validation(self, validation_file):
+        total_error = 0
+        self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+        self.rl_predictors_map.clear()
+        self.data.clear()
+        self.build_investment_map()
+        end_date = self.now_date + (datetime.timedelta(hours=24) * self.simulation_steps)
+
+        for card_name, info in self.data.copy().items():
+            pprint(card_name)
+            total_error += self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, True)
+            total_error += self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, False)
+        pprint("Error from " + str(self.now_date) + " is " + str(total_error))
+        validation_file.write(" - Total Error: " + str(total_error) + "\n")
+
+
 
 
 
 if __name__ == "__main__":
     sim = Simulator_RL()
-    sim.validate_n_episodes()
+    #sim.validate_n_episodes()
     #sim.launch()
+    sim.validate_Q_value()
 
 
 

@@ -27,6 +27,8 @@ standard_exit = {"DTK": 1476050400000}
 
 feature_to_index_table = {"prices": 0, "usage": 1, "budget": 2, "packs": 3, "exit": 4, "allG": 5, "ptExps": 6, "modern": 7, "MACD": 8, "RSI": 9}
 total_market_price = {}
+total_price_MACD = None
+
 
 
 def get_feature_to_index_map():
@@ -34,18 +36,29 @@ def get_feature_to_index_map():
 
 
 def get_total_market_price_MACD():
-    build_total_market_price_map()
-    market_price_list = []
-    for key, value in total_market_price.copy().items():
-        avg = value[1]/float(value[0])
-        market_price_list.append([key, avg])
-    market_price_list.sort(key=lambda x: x[0])
-    ma_short = [x[1] for x in build_exponential_moving_average(market_price_list, 12)]
-    ma_long = [x[1] for x in build_exponential_moving_average(market_price_list, 26)]
-    signal_line_p = [s - l for s, l in zip(ma_short, ma_long)]
-    signal_line = [[market_price_list[i][0], signal_line_p[i]] for i in range(len(market_price_list))]
-    ma_signal = build_exponential_moving_average(signal_line, 9)
-    return ma_signal
+    global total_price_MACD
+    if not total_price_MACD:
+        build_total_market_price_map()
+        market_price_list = []
+        for key, value in total_market_price.copy().items():
+            avg = value[1]/float(value[0])
+            market_price_list.append([key, avg])
+        market_price_list.sort(key=lambda x: x[0])
+        ma_short = [x[1] for x in build_exponential_moving_average(market_price_list, 12)]
+        ma_long = [x[1] for x in build_exponential_moving_average(market_price_list, 26)]
+        signal_line_p = [s - l for s, l in zip(ma_short, ma_long)]
+        signal_line = [[market_price_list[i][0], signal_line_p[i]] for i in range(len(market_price_list))]
+        ma_signal = build_exponential_moving_average(signal_line, 9)
+        total_price_MACD = ma_signal
+    return total_price_MACD
+
+
+def get_total_market_price_MACD_dict():
+    ma_signal = get_total_market_price_MACD()
+    total_dict = {}
+    for tupla in ma_signal:
+        total_dict[tupla[0]] = tupla[1]
+    return total_dict
 
 
 def build_total_market_price_map():
