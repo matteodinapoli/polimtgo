@@ -95,7 +95,7 @@ class Simulator_RL(Simulator):
         return today_sell_price
 
     
-    def validate_n_episodes(self):
+    def validate_n_episodes_on_model_performance(self):
         with open(get_data_location() + "SIM\\" + "_Episodes_Validation_Result.txt", "w") as validation_file:
             validation_file.write("**** " + str() + " ****\n")
             self.init_params_for_validation()
@@ -131,7 +131,7 @@ class Simulator_RL(Simulator):
                 validation_file.write("Perdita totale: " + str(neg) + "\n")
 
 
-    def validate_Q_value(self):
+    def validate_Q_value_on_effective_reward(self):
         with open(get_data_location() + "SIM\\" + "Q_validation_result.txt", "w") as validation_file:
             validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
             for episodes in self.episodes_n:
@@ -152,11 +152,63 @@ class Simulator_RL(Simulator):
 
         for card_name, info in self.data.copy().items():
             pprint(card_name)
-            total_error += self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, True)
-            total_error += self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, False)
+            total_error += (self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, True)) ** 2
+            total_error += (self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, False)) ** 2
         pprint("Error from " + str(self.now_date) + " is " + str(total_error))
         validation_file.write(" - Total Error: " + str(total_error) + "\n")
 
+
+    def validate_Q_on_episodes_number(self):
+        self.validate_Q_value_on_parameters_error_difference(self.episodes_n, "Episodes")
+
+
+    def validate_Q_value_on_parameters_error_difference(self, parameter_list, changing_parameter):
+        with open(get_data_location() + "SIM\\" + "Q_validation_CME_result.txt", "w") as validation_file:
+            validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
+            end_date = self.now_date + (datetime.timedelta(hours=24) * self.simulation_steps)
+            Q_value_parameters_map = {}
+            for parameter in parameter_list:
+                if changing_parameter == "Episodes":
+                    self.actual_episodes_n = parameter
+                self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+                self.rl_predictors_map.clear()
+                self.data.clear()
+                self.build_investment_map()
+
+                Q_value_card_map = {}
+                for card_name, info in self.data.copy().items():
+                    Q_value_list = []
+                    self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+                    while self.now_date < end_date:
+                        Q_value_t, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, True)
+                        Q_value_f, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, False)
+                        Q_value = np.concatenate([Q_value_t[0], Q_value_f[0]])
+                        Q_value_list.append(Q_value)
+                        self.now_date += datetime.timedelta(hours=24)
+                    Q_value_card_map[card_name] = Q_value_list
+                Q_value_parameters_map[parameter] = Q_value_card_map
+
+            pivot_card_map = Q_value_parameters_map[parameter_list[-1]]
+            pivot_items = pivot_card_map.copy().items()
+            for parameter in parameter_list[:-1]:
+
+                pprint("**** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****")
+                validation_file.write("\n **** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****\n")
+
+                comparison_map = Q_value_parameters_map[parameter]
+                base = None
+                for card_name, Q_list in pivot_items:
+                    comparison_list = comparison_map[card_name]
+                    if base is None:
+                        base = np.square(np.subtract(Q_list, comparison_list))
+                    else:
+                        base = np.vstack([base, np.square(np.subtract(Q_list, comparison_list))])
+                MSE = np.average(base)
+                validation_file.write(" - MSE: " + str(MSE) + "\n")
+                SSE = np.sum(base)
+                validation_file.write(" - SSE: " + str(SSE) + "\n")
+                variance = np.var(base)
+                validation_file.write(" - Variance: " + str(variance) + "\n")
 
 
 
@@ -165,7 +217,7 @@ if __name__ == "__main__":
     sim = Simulator_RL()
     #sim.validate_n_episodes()
     #sim.launch()
-    sim.validate_Q_value()
+    sim.validate_Q_on_episodes_number()
 
 
 
