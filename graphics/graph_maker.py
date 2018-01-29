@@ -293,3 +293,25 @@ def make_prediction_graph(dates, prices, predicted_prices, title, set_dir, MSE):
     fig['layout']['annotations'] = annotations
     fig['data'] = data_comp
     plotly.offline.plot(fig, filename=str(join(base_path, set_dir)) + "\\" + str(title), auto_open=False)
+
+
+def make_Q_validation_graph(validation_lists, title_list, title):
+    base_path = get_data_location() + "Q_validation_graph\\"
+    data_comp = []
+    i = 0
+    for lis in validation_lists:
+        # Create a trace
+        trace = go.Scatter(
+            x=[x[0] for x in lis],
+            y=[y[1] for y in lis],
+            name= title_list[i]
+        )
+        i = i + 1
+        data_comp.append(trace)
+    layout = go.Layout(
+        title=title
+    )
+    fig = go.Figure(data=data_comp, layout=layout)
+    fig['data'] = data_comp
+    plotly.offline.plot(fig, filename=str(base_path) + "\\" + str(title), auto_open=False)
+

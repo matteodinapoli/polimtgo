@@ -1,5 +1,6 @@
 from reinforcement_learning.FQI_learner import *
 from simulation.simulator import Simulator
+import re
 
 
 
@@ -211,13 +212,35 @@ class Simulator_RL(Simulator):
                 validation_file.write(" - Variance: " + str(variance) + "\n")
 
 
+    def analyze_Q_validation_files(self):
+        files_path = get_data_location() + "Q_validation"
+        validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+        validation_lists = []
+        title_list = []
+        for validation_file_name in validation_files:
+            f = open(join(files_path, validation_file_name), "r")
+            title_list.append(validation_file_name)
+            key_list = []
+            sse_list = []
+            for line in f:
+                if "Valore Parametro" in line:
+                    key_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                elif "SSE" in line:
+                    sse_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+            f.close()
+            sse_list = normalize_list(sse_list)
+            tuple_list = list(zip(key_list, sse_list))
+            del tuple_list[0]
+            validation_lists.append(tuple_list)
+        make_Q_validation_graph(validation_lists, title_list, "Episodes Validation SSE")
 
 
 if __name__ == "__main__":
     sim = Simulator_RL()
     #sim.validate_n_episodes()
     #sim.launch()
-    sim.validate_Q_on_episodes_number()
+    #sim.validate_Q_on_episodes_number()
+    sim.analyze_Q_validation_files()
 
 
 
