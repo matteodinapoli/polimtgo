@@ -315,3 +315,51 @@ def make_Q_validation_graph(validation_lists, title_list, title):
     fig['data'] = data_comp
     plotly.offline.plot(fig, filename=str(base_path) + "\\" + str(title), auto_open=False)
 
+
+def make_Q_validation_intervals_graph(x_axis, triplets, title_list, title):
+    base_path = get_data_location() + "Q_validation_graph\\"
+    data = []
+    i = 0
+    for triplet in triplets:
+        upper_bound = go.Scatter(
+            name='Lower Bound',
+            x=x_axis,
+            y=triplet[0],
+            mode='lines',
+            marker=dict(color="444"),
+            line=dict(width=0),
+            fillcolor='rgba(68, 68, 68, 0.3)',
+            fill='tonexty')
+
+        trace = go.Scatter(
+            name=title_list[i],
+            x=x_axis,
+            y=triplet[1],
+            mode='lines',
+            line=dict(color='rgb(31, 119, 180)'),
+            fillcolor='rgba(68, 68, 68, 0.3)',
+            fill='tonexty')
+
+        lower_bound = go.Scatter(
+            name='Upper Bound',
+            x=x_axis,
+            y=triplet[2],
+            marker=dict(color="444"),
+            line=dict(width=0),
+            mode='lines')
+
+        # Trace order can be important
+        # with continuous error bars
+        data.append(lower_bound)
+        data.append(trace)
+        data.append(upper_bound)
+        i = i + 1
+
+    layout = go.Layout(
+        title=title,
+        showlegend = False)
+
+    fig = go.Figure(data=data, layout=layout)
+    plotly.offline.plot(fig, filename=str(base_path) + "\\" + str(title), auto_open=False)
+
+

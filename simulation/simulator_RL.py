@@ -1,6 +1,8 @@
 from reinforcement_learning.FQI_learner import *
 from simulation.simulator import Simulator
 import re
+import scipy.stats as st
+
 
 
 
@@ -235,12 +237,50 @@ class Simulator_RL(Simulator):
         make_Q_validation_graph(validation_lists, title_list, "Episodes Validation SSE")
 
 
+    def analyze_Q_validation_files_w_intervals(self):
+        files_path = get_data_location() + "Q_validation"
+        validation_folders = [f for f in listdir(files_path) if os.path.isdir(join(files_path, f))]
+        triplets = []
+        for validation_fold in validation_folders:
+            validation_files = [f for f in listdir(join(files_path,validation_fold)) if isfile(join(join(files_path,validation_fold), f))]
+            x = []
+            title_list = []
+            episodes_map = {10: [], 20: [], 30: [], 40: [], 50: [], 60: [], 70: [], 80: [], 90: [], 100: [], 200: []}
+            key = -1
+            val = -1
+            for validation_file_name in validation_files:
+                f = open(join(join(files_path,validation_fold), validation_file_name), "r")
+                title_list.append(validation_file_name)
+                for line in f:
+                    if "Valore Parametro" in line:
+                        key = float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0])
+                    elif "SSE" in line:
+                        val = float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0])
+                        episodes_map[key].append(val)
+                f.close()
+            triplet = [[], [], []]
+            x_axis = []
+            for key, array in episodes_map.copy().items():
+                x_axis.append(key)
+                triplet[1].append(np.mean(array))
+                ints = self.get_confidence_interval(array)
+                triplet[0].append(ints[0])
+                triplet[2].append(ints[1])
+            pprint(triplet)
+            triplets.append(triplet)
+            x = x_axis
+            make_Q_validation_intervals_graph(x, triplets, title_list, "Episodes Validation SSE " + str(validation_fold))
+            triplets = []
+
+    def get_confidence_interval(self, a):
+        return st.t.interval(0.95, len(a) - 1, loc=np.mean(a), scale=st.sem(a))
+
 if __name__ == "__main__":
     sim = Simulator_RL()
     #sim.validate_n_episodes()
     #sim.launch()
     #sim.validate_Q_on_episodes_number()
-    sim.analyze_Q_validation_files()
+    sim.analyze_Q_validation_files_w_intervals()
 
 
 
