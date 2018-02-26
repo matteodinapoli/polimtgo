@@ -42,7 +42,11 @@ class MTGO_Q_learner:
         # Algorithm
         core = Core(self.agent, self.mdp)
         # Train
-        core.learn(n_iterations=1, how_many= self.episodes_n, n_fit_steps=20, iterate_over='episodes')
+        how_many = self.episodes_n
+        if hasattr(self.mdp, 'explore_all_dataset'):
+            if self.mdp.explore_all_dataset:
+                how_many = 1
+        core.learn(n_iterations=1, how_many=how_many, n_fit_steps=20, iterate_over='episodes')
 
 
     def get_Q_prediction(self, now_date, has_the_card):

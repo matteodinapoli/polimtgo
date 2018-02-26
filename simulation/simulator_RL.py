@@ -7,13 +7,16 @@ import scipy.stats as st
 
 
 class Simulator_RL(Simulator):
-    rl_predictors_map = {}
-    test_mode = True
-    start = "2016-04-01 20:30:55"
+
+    test_mode = False
+    start = "2017-01-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+    rl_predictors_map = {}
     sold_today = {}
-    validation_reps = 10
     Q_threshold = 0.1
+
+    validation_reps = 10
+
 
     def get_datafile_name(self):
         return "Simulation_FQI"
@@ -278,9 +281,9 @@ class Simulator_RL(Simulator):
 if __name__ == "__main__":
     sim = Simulator_RL()
     #sim.validate_n_episodes()
-    #sim.launch()
     #sim.validate_Q_on_episodes_number()
-    sim.analyze_Q_validation_files_w_intervals()
+    #sim.analyze_Q_validation_files_w_intervals()
+    sim.launch()
 
 
 

@@ -32,6 +32,13 @@ class MTGOenv(Environment):
         self.dates = []
         self.prices = []
 
+        self.explore_all_dataset = True
+        self.price_cache = 0
+        self.state_cahce = []
+        self.absorb_cache = False
+
+        self._base_state = None
+
         # MDP parameters
         """ -1 == buy, 1 == sell"""
         self._discrete_actions = [-1., 1.]
@@ -60,13 +67,11 @@ class MTGOenv(Environment):
 
 
     def step(self, action):
-
         action = self._discrete_actions[action[0]]
-
-        price, features, absorbing = self.load_next_data(False, True, self.now_date)
-        self.now_date += datetime.timedelta(hours=24)
-
         has_the_card = self._state[-1]
+        self.now_date += datetime.timedelta(hours=24)
+        price, features, absorbing = self.load_next_data(False, True, self.now_date)
+
         has_the_card_new = 0
 
         new_state = np.array(features)
@@ -86,9 +91,22 @@ class MTGOenv(Environment):
                 reward = - price
 
         new_state = np.append(new_state, has_the_card_new)
-        self._state = new_state
 
-        return self._state, reward, absorbing, {}
+        self._base_state = self._state.copy()
+        if self.explore_all_dataset:
+            if action == self._discrete_actions[-1] and has_the_card == 0:
+                """ set has the card """
+                self._state[-1] = 1
+            if action == self._discrete_actions[-1] and has_the_card == 1:
+                self._state = new_state
+                self._state[-1] = 0
+            else:
+                """ exploring the other actions of the day """
+                self.now_date -= datetime.timedelta(hours=24)
+        else:
+            self._state = new_state
+
+        return new_state.copy(), reward, absorbing, {}
 
 
 

@@ -7,14 +7,13 @@ class Simulator:
 
     releases = {"TST":1444600800000, "AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
     test_mode = False
-    #set_dirs = ["SOI", "EMN", "OGW", "BFZ", "KLD"];
     set_dirs = []
 
     data = {}
     transactions = {}
 
-    starting_budget = 200
-    budget = 200
+    starting_budget = 500
+    budget = 500
     max_card_pieces = 20
     owned_cards = {}
     simulation_steps = 30
