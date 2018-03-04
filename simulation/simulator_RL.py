@@ -22,7 +22,8 @@ class Simulator_RL(Simulator):
         return "Simulation_FQI"
 
     def build_investment_map(self):
-        self.evaluate_available_sets()
+        if not self.set_dirs:
+            self.evaluate_available_sets()
         for set_dir in self.set_dirs:
             load_feature_selection_table(set_dir)
             prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
