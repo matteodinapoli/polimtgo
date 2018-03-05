@@ -12,14 +12,14 @@ class Simulator:
     data = {}
     transactions = {}
 
-    starting_budget = 500
-    budget = 500
+    starting_budget = 1000
+    budget = 1000
     max_card_pieces = 20
     owned_cards = {}
-    simulation_steps = 30
+    simulation_steps = 60
     buy_threshold = 0
-    BH_stoploss_threshold_l = [0, 0.1, 0.2, 0.3, 0.4]
-    BH_stopgain_threshold_l = [0, 0.1, 0.2, 0.3, 0.4]
+    BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6]
+    BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6]
     BH_stoploss_threshold = 0
     BH_stopgain_threshold = 0
     datafile = None
@@ -162,68 +162,69 @@ class Simulator:
             self.BH_stoploss_threshold = stoploss
             for stopgain in self.BH_stopgain_threshold_l:
                 self.BH_stopgain_threshold = stopgain
-                self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
-                self.owned_cards.clear()
-                self.budget = self.starting_budget
-                self.transactions = {}
-                pprint("********** SIMULATION START **********")
-                with open(get_data_location()+ "SIM\\" + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
-                    for step in range(self.simulation_steps):
+                if self.BH_stoploss_threshold == self.BH_stopgain_threshold:
+                    self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+                    self.owned_cards.clear()
+                    self.budget = self.starting_budget
+                    self.transactions = {}
+                    pprint("********** SIMULATION START **********")
+                    with open(get_data_location()+ self.get_result_folder() + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
+                        for step in range(self.simulation_steps):
 
-                        a = datetime.datetime.now()
+                            a = datetime.datetime.now()
 
-                        pprint("********** " + str(self.now_date) + " **********")
-                        self.datafile.write("\n\n")
-                        self.datafile.write("********** " + str(self.now_date) + "**********\n")
+                            pprint("********** " + str(self.now_date) + " **********")
+                            self.datafile.write("\n\n")
+                            self.datafile.write("********** " + str(self.now_date) + "**********\n")
 
-                        self.build_investment_map()
-                        margin_list = self.get_investment_margin_list()
-                        self.manage_owned_cards(margin_list)
-                        if step < self.simulation_steps - 1:
-                            self.fill_investment_portfolio(margin_list)
-                        self.assess_portfolio()
+                            self.build_investment_map()
+                            margin_list = self.get_investment_margin_list()
+                            self.manage_owned_cards(margin_list)
+                            if step < self.simulation_steps - 1:
+                                self.fill_investment_portfolio(margin_list)
+                            self.assess_portfolio()
 
-                        pprint("CARTE POSSEDUTE")
-                        self.datafile.write("CARTE POSSEDUTE\n")
-                        pprint(self.owned_cards)
-                        self.datafile.write(str(self.owned_cards) + "\n")
-                        pprint("BUDGET")
-                        self.datafile.write("BUDGET\n")
-                        pprint(self.budget)
-                        self.datafile.write(str(self.budget) + "\n")
-
-                        if step == self.simulation_steps - 1:
-                            self.sell_all_owned_cards()
-                            self.datafile.write("LISTA TRANSAZIONI\n")
-                            self.datafile.write(str(self.transactions) + "\n")
-                            pos = 0
-                            pos_n = 0
-                            neg = 0
-                            neg_n = 0
-                            for card, list in self.transactions.copy().items():
-                                for tupla in list:
-                                    gain = tupla[1] * tupla[0]
-                                    if gain > 0:
-                                        pos += gain
-                                        pos_n += 1
-                                    else:
-                                        neg += gain
-                                        neg_n += 1
-                            self.results_episodes[self.actual_episodes_n].append([self.budget, pos_n, pos, neg_n, neg])
-                            self.datafile.write("Transazioni positive: " + str(pos_n)  +"\n")
-                            self.datafile.write("Guadagno totale: " + str(pos) + "\n")
-                            self.datafile.write("Transazioni negative: " + str(neg_n) + "\n")
-                            self.datafile.write("Perdita totale: " + str(neg) + "\n")
-                            self.datafile.write(str(self.transactions) + "\n")
-                            self.datafile.write("BUDGET FINALE\n")
+                            pprint("CARTE POSSEDUTE")
+                            self.datafile.write("CARTE POSSEDUTE\n")
+                            pprint(self.owned_cards)
+                            self.datafile.write(str(self.owned_cards) + "\n")
+                            pprint("BUDGET")
+                            self.datafile.write("BUDGET\n")
+                            pprint(self.budget)
                             self.datafile.write(str(self.budget) + "\n")
 
-                        self.now_date += datetime.timedelta(hours=24)
+                            if step == self.simulation_steps - 1:
+                                self.sell_all_owned_cards()
+                                self.datafile.write("LISTA TRANSAZIONI\n")
+                                self.datafile.write(str(self.transactions) + "\n")
+                                pos = 0
+                                pos_n = 0
+                                neg = 0
+                                neg_n = 0
+                                for card, list in self.transactions.copy().items():
+                                    for tupla in list:
+                                        gain = tupla[1] * tupla[0]
+                                        if gain > 0:
+                                            pos += gain
+                                            pos_n += 1
+                                        else:
+                                            neg += gain
+                                            neg_n += 1
+                                self.results_episodes[self.actual_episodes_n].append([self.budget, pos_n, pos, neg_n, neg])
+                                self.datafile.write("Transazioni positive: " + str(pos_n)  +"\n")
+                                self.datafile.write("Guadagno totale: " + str(pos) + "\n")
+                                self.datafile.write("Transazioni negative: " + str(neg_n) + "\n")
+                                self.datafile.write("Perdita totale: " + str(neg) + "\n")
+                                self.datafile.write(str(self.transactions) + "\n")
+                                self.datafile.write("BUDGET FINALE\n")
+                                self.datafile.write(str(self.budget) + "\n")
 
-                        b = datetime.datetime.now()
-                        delta = b - a
-                        pprint("STEP TIME")
-                        print(delta)
+                            self.now_date += datetime.timedelta(hours=24)
+
+                            b = datetime.datetime.now()
+                            delta = b - a
+                            pprint("STEP TIME")
+                            print(delta)
 
 
 
@@ -246,6 +247,9 @@ class Simulator:
 
     def get_datafile_name(self):
         return
+
+    def get_result_folder(self):
+        return "SIM\\"
 
 
 

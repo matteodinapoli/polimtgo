@@ -6,12 +6,15 @@ import random
 
 class Simulator_Random(Simulator):
     test_mode = False
-    start = "2017-01-01 20:30:55"
+    start = "2016-06-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     N_of_investments = 5
+    iteration = 1
+    BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6]
+    BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6]
 
     def get_datafile_name(self):
-        return "Simulation_RANDOM"
+        return "Simulation_RANDOM_" + str(self.iteration) + "_"
 
     def build_investment_map(self):
         self.evaluate_available_sets()
@@ -60,22 +63,54 @@ class Simulator_Random(Simulator):
                     if card_name in self.transactions:
                         self.transactions[card_name].append([quantity, gain])
                     else:
-                        self.transactions[card_name] = [quantity, gain]
+                        self.transactions[card_name] = [[quantity, gain]]
 
 
     def get_price_from_data_map(self, card_name):
         price_dict = self.data[card_name]
         price_key = self.find_current_time_key(price_dict, self.now_date)
         price = price_dict[price_key]
-        price -= get_spread(price)
+        price -= self.get_spread(price)
         return price
 
+
+    def get_result_folder(self):
+        return "Random_Data\\"
+
+
+    def compute_average(self):
+        files_path = get_data_location() + self.get_result_folder()
+        types = ["0_0.txt", "0.2_0.2.txt", "0.4_0.4.txt", "0.6_0.6.txt"]
+        validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+
+        for type in types:
+            final_results = []
+            for validation_file_name in validation_files:
+                if type in validation_file_name:
+                    f = open(join(files_path, validation_file_name), "r")
+                    value = False
+                    for line in f:
+                        if "BUDGET FINALE" in line:
+                            value = True
+                        elif value:
+                            final_results.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                    f.close()
+            with open(get_data_location() + self.get_result_folder() + "Random_Result_" + type, "w") as result_file:
+                avg = np.average(final_results)
+                result_file.write("Average Result: " + str(avg) + "\n")
+                variance = np.var(final_results)
+                result_file.write("Result Variance: " + str(variance) + "\n")
+                std = np.std(final_results)
+                result_file.write("Result Standard Deviation: " + str(std) + "\n")
 
 
 
 if __name__ == "__main__":
     sim = Simulator_Random()
-    sim.launch()
+    for x in range(1, 11):
+        sim.iteration = x
+        sim.launch()
+    sim.compute_average()
 
 
 
