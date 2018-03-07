@@ -11,7 +11,7 @@ from reinforcement_learning.FQI_environment import *
 class MTGO_Q_learner:
     agent = None
 
-    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="1476050400000", train_end="2016-12-01 20:30:55", episodes = 1000, min_split = 5):
+    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="2016-01-01 20:30:55", train_end="2016-12-01 20:30:55", episodes = 1000, min_split = 5):
         self.mdp = MTGOenv(set_dir, card_file, train_start, train_end)
         self.episodes_n = episodes
         self.split_n = min_split

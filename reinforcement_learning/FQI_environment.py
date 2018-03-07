@@ -13,16 +13,19 @@ from simulation.simulator import Simulator
 
 class MTGOenv(Environment):
 
-    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start=1476050400000, train_end="2016-12-01 20:30:55"):
+    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt",
+                 train_start=datetime.datetime.strptime("2016-01-01 20:30:55", "%Y-%m-%d %H:%M:%S"),
+                 train_end=datetime.datetime.strptime("2016-12-01 20:30:55", "%Y-%m-%d %H:%M:%S")):
         self.__name__ = 'MTGOenv'
 
         self.data = None
         self.card_features = None
         self.set_dir = set_dir
         self.card_file = card_file
+        """ in millis """
         self.start = train_start
-        self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
-        self.end_date = datetime.datetime.strptime(train_end, "%Y-%m-%d %H:%M:%S")
+        self.now_date = train_start
+        self.end_date = train_end
         self.spread_getter = Simulator()
         self.total_price_MACD = None
 
@@ -113,7 +116,7 @@ class MTGOenv(Environment):
     def load_next_data(self, reset, store_state, now_date=None):
 
         if reset:
-            self.now_date = datetime.datetime.fromtimestamp(self.start/1000.0)
+            self.now_date = self.start
             now_date = self.now_date
         normalized = False
         if not self.data:

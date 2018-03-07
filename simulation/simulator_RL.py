@@ -9,8 +9,9 @@ import scipy.stats as st
 class Simulator_RL(Simulator):
 
     test_mode = False
+    training_set_days = 60
     simulation_steps = 60
-    start = "2016-04-01 20:30:55"
+    start = "2016-02-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     rl_predictors_map = {}
     sold_today = {}
@@ -26,7 +27,7 @@ class Simulator_RL(Simulator):
         return "RL_iterations\\"
 
     def build_investment_map(self):
-        #if not self.set_dirs:
+        #if not self.set_dirs: #uncomment to consider only the initial sets for all the simulation
         self.evaluate_available_sets()
         self.data.clear()
         for set_dir in self.set_dirs:
@@ -39,8 +40,9 @@ class Simulator_RL(Simulator):
                 if card_name in get_feature_selection_table(set_dir):
                     """ train the FQI learner and store it """
                     if card_name not in self.rl_predictors_map:
-                        #predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.start, self.actual_episodes_n, self.actual_split_n)
-                        predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.now_date.strftime("%Y-%m-%d %H:%M:%S"),
+                        training_start = self.now_date - datetime.timedelta(days=self.training_set_days)
+                        training_end = self.now_date
+                        predictor = MTGO_Q_learner(set_dir, card_file, training_start, training_end,
                                                    self.actual_episodes_n, self.actual_split_n)
                         pprint("**** Learning " + str(card_name) + " model ****")
                         predictor.learn()
