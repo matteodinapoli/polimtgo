@@ -11,9 +11,10 @@ from reinforcement_learning.FQI_environment import *
 class MTGO_Q_learner:
     agent = None
 
-    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="1476050400000", train_end="2016-12-01 20:30:55", episodes = 1000):
+    def __init__(self, set_dir="TST", card_file="Botanical Sanctum.txt", train_start="1476050400000", train_end="2016-12-01 20:30:55", episodes = 1000, min_split = 5):
         self.mdp = MTGOenv(set_dir, card_file, train_start, train_end)
         self.episodes_n = episodes
+        self.split_n = min_split
 
 
     def learn(self):
@@ -26,7 +27,7 @@ class MTGO_Q_learner:
         approximator_params = dict(input_shape=self.mdp.info.observation_space.shape,
                                    n_actions=self.mdp.info.action_space.n,
                                    n_estimators=50,
-                                   min_samples_split=5,
+                                   min_samples_split= self.split_n,
                                    min_samples_leaf=2)
         approximator = ExtraTreesRegressor
 

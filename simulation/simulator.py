@@ -12,22 +12,22 @@ class Simulator:
     data = {}
     transactions = {}
 
-    starting_budget = 1000
-    budget = 1000
+    starting_budget = 2000
+    budget = 2000
     max_card_pieces = 20
     owned_cards = {}
-    simulation_steps = 60
+    simulation_steps = 90
     buy_threshold = 0
-    BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6]
-    BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6]
+    BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
+    BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
     BH_stoploss_threshold = 0
     BH_stopgain_threshold = 0
     datafile = None
 
     """ for cross-validation """
-    episodes_n = [10, 20]
     #episodes_n = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
-    actual_episodes_n = 1000
+    episodes_n = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 1000]
+    actual_episodes_n = 200
     results_episodes = {10: [], 20: [], 30: [], 40: [], 50: [], 60: [], 70: [], 80: [], 90: [], 100: [], 200: [], 300: [], 400: [], 500: [], 600: [], 700: [], 800: [], 900: [], 1000: []}
 
 
@@ -167,6 +167,7 @@ class Simulator:
                     self.owned_cards.clear()
                     self.budget = self.starting_budget
                     self.transactions = {}
+                    self.set_dirs = []
                     pprint("********** SIMULATION START **********")
                     with open(get_data_location()+ self.get_result_folder() + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
                         for step in range(self.simulation_steps):
@@ -178,6 +179,7 @@ class Simulator:
                             self.datafile.write("********** " + str(self.now_date) + "**********\n")
 
                             self.build_investment_map()
+                            self.datafile.write(str(self.set_dirs))
                             margin_list = self.get_investment_margin_list()
                             self.manage_owned_cards(margin_list)
                             if step < self.simulation_steps - 1:

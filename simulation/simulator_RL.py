@@ -9,11 +9,14 @@ import scipy.stats as st
 class Simulator_RL(Simulator):
 
     test_mode = False
-    start = "2017-01-01 20:30:55"
+    start = "2016-08-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     rl_predictors_map = {}
     sold_today = {}
     Q_threshold = 0.1
+    simulation_steps = 60
+    split_n = [100, 80, 60, 50, 40, 30, 20, 15, 10, 5, 2]
+    actual_split_n = 2
 
     validation_reps = 10
 
@@ -22,8 +25,9 @@ class Simulator_RL(Simulator):
         return "Simulation_FQI"
 
     def build_investment_map(self):
-        if not self.set_dirs:
-            self.evaluate_available_sets()
+        #if not self.set_dirs:
+        self.evaluate_available_sets()
+        self.data.clear()
         for set_dir in self.set_dirs:
             load_feature_selection_table(set_dir)
             prices_path = get_data_location() + "DATA\\MTGOprices\\Standard\\" + set_dir
@@ -34,7 +38,9 @@ class Simulator_RL(Simulator):
                 if card_name in get_feature_selection_table(set_dir):
                     """ train the FQI learner and store it """
                     if card_name not in self.rl_predictors_map:
-                        predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.start, self.actual_episodes_n)
+                        #predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.start, self.actual_episodes_n, self.actual_split_n)
+                        predictor = MTGO_Q_learner(set_dir, card_file, self.releases[set_dir], self.now_date.strftime("%Y-%m-%d %H:%M:%S"),
+                                                   self.actual_episodes_n, self.actual_split_n)
                         pprint("**** Learning " + str(card_name) + " model ****")
                         predictor.learn()
                         card_name = os.path.splitext(card_file)[0]
@@ -102,7 +108,88 @@ class Simulator_RL(Simulator):
         return today_sell_price
 
     
-    def validate_n_episodes_on_model_performance(self):
+    def validate_Q_on_episodes_number(self, n):
+        self.validate_Q_value_on_parameters_error_difference(self.episodes_n, "Episodes", n)
+
+    def validate_Q_on_min_sample_split(self, n):
+        self.validate_Q_value_on_parameters_error_difference(self.split_n, "Split", n)
+
+    def validate_Q_value_on_parameters_error_difference(self, parameter_list, changing_parameter, n=0):
+        with open(get_data_location() + "SIM\\" + "Q_validation_result_" + str(changing_parameter) + "_" + str((datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")).strftime("%Y_%m")) + "_" + str(n) + ".txt", "w") as validation_file:
+            validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
+            end_date = self.now_date + (datetime.timedelta(hours=24) * self.simulation_steps)
+            Q_value_parameters_map = {}
+            for parameter in parameter_list:
+                if changing_parameter == "Episodes":
+                    self.actual_episodes_n = parameter
+                if changing_parameter == "Split":
+                    self.actual_split_n = parameter
+                self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+                self.rl_predictors_map.clear()
+                self.data.clear()
+                self.build_investment_map()
+
+                Q_value_card_map = {}
+                for card_name, info in self.data.copy().items():
+                    Q_value_list = []
+                    self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
+                    while self.now_date < end_date:
+                        Q_value_t, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, True)
+                        Q_value_f, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, False)
+                        Q_value = np.concatenate([Q_value_t[0], Q_value_f[0]])
+                        Q_value_list.append(Q_value)
+                        self.now_date += datetime.timedelta(hours=24)
+                    Q_value_card_map[card_name] = Q_value_list
+                Q_value_parameters_map[parameter] = Q_value_card_map
+
+            pivot_card_map = Q_value_parameters_map[parameter_list[-1]]
+            pivot_items = pivot_card_map.copy().items()
+            for parameter in parameter_list[:-1]:
+
+                pprint("**** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****")
+                validation_file.write("\n **** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****\n")
+
+                comparison_map = Q_value_parameters_map[parameter]
+                base = None
+                for card_name, Q_list in pivot_items:
+                    comparison_list = comparison_map[card_name]
+                    if base is None:
+                        base = np.square(np.subtract(Q_list, comparison_list))
+                    else:
+                        base = np.vstack([base, np.square(np.subtract(Q_list, comparison_list))])
+                MSE = np.average(base)
+                validation_file.write(" - MSE: " + str(MSE) + "\n")
+                SSE = np.sum(base)
+                validation_file.write(" - SSE: " + str(SSE) + "\n")
+                variance = np.var(base)
+                validation_file.write(" - Variance: " + str(variance) + "\n")
+
+
+    def analyze_Q_validation_files(self):
+        files_path = get_data_location() + "Q_validation"
+        validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+        validation_lists = []
+        title_list = []
+        for validation_file_name in validation_files:
+            f = open(join(files_path, validation_file_name), "r")
+            title_list.append(validation_file_name)
+            key_list = []
+            sse_list = []
+            for line in f:
+                if "Valore Parametro" in line:
+                    key_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                elif "SSE" in line:
+                    sse_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+            f.close()
+            sse_list = normalize_list(sse_list)
+            tuple_list = list(zip(key_list, sse_list))
+            #del tuple_list[0]
+            validation_lists.append(tuple_list)
+        make_Q_validation_graph(validation_lists, title_list, "Min Split Validation SSE")
+
+
+    """
+        def validate_n_episodes_on_model_performance(self):
         with open(get_data_location() + "SIM\\" + "_Episodes_Validation_Result.txt", "w") as validation_file:
             validation_file.write("**** " + str() + " ****\n")
             self.init_params_for_validation()
@@ -163,82 +250,7 @@ class Simulator_RL(Simulator):
             total_error += (self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, False)) ** 2
         pprint("Error from " + str(self.now_date) + " is " + str(total_error))
         validation_file.write(" - Total Error: " + str(total_error) + "\n")
-
-
-    def validate_Q_on_episodes_number(self):
-        self.validate_Q_value_on_parameters_error_difference(self.episodes_n, "Episodes")
-
-
-    def validate_Q_value_on_parameters_error_difference(self, parameter_list, changing_parameter):
-        with open(get_data_location() + "SIM\\" + "Q_validation_CME_result.txt", "w") as validation_file:
-            validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
-            end_date = self.now_date + (datetime.timedelta(hours=24) * self.simulation_steps)
-            Q_value_parameters_map = {}
-            for parameter in parameter_list:
-                if changing_parameter == "Episodes":
-                    self.actual_episodes_n = parameter
-                self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
-                self.rl_predictors_map.clear()
-                self.data.clear()
-                self.build_investment_map()
-
-                Q_value_card_map = {}
-                for card_name, info in self.data.copy().items():
-                    Q_value_list = []
-                    self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
-                    while self.now_date < end_date:
-                        Q_value_t, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, True)
-                        Q_value_f, price = self.rl_predictors_map[card_name].get_Q_prediction(self.now_date, False)
-                        Q_value = np.concatenate([Q_value_t[0], Q_value_f[0]])
-                        Q_value_list.append(Q_value)
-                        self.now_date += datetime.timedelta(hours=24)
-                    Q_value_card_map[card_name] = Q_value_list
-                Q_value_parameters_map[parameter] = Q_value_card_map
-
-            pivot_card_map = Q_value_parameters_map[parameter_list[-1]]
-            pivot_items = pivot_card_map.copy().items()
-            for parameter in parameter_list[:-1]:
-
-                pprint("**** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****")
-                validation_file.write("\n **** Valore Parametro " + str(changing_parameter) + ": " + str(parameter) + " ****\n")
-
-                comparison_map = Q_value_parameters_map[parameter]
-                base = None
-                for card_name, Q_list in pivot_items:
-                    comparison_list = comparison_map[card_name]
-                    if base is None:
-                        base = np.square(np.subtract(Q_list, comparison_list))
-                    else:
-                        base = np.vstack([base, np.square(np.subtract(Q_list, comparison_list))])
-                MSE = np.average(base)
-                validation_file.write(" - MSE: " + str(MSE) + "\n")
-                SSE = np.sum(base)
-                validation_file.write(" - SSE: " + str(SSE) + "\n")
-                variance = np.var(base)
-                validation_file.write(" - Variance: " + str(variance) + "\n")
-
-
-    def analyze_Q_validation_files(self):
-        files_path = get_data_location() + "Q_validation"
-        validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
-        validation_lists = []
-        title_list = []
-        for validation_file_name in validation_files:
-            f = open(join(files_path, validation_file_name), "r")
-            title_list.append(validation_file_name)
-            key_list = []
-            sse_list = []
-            for line in f:
-                if "Valore Parametro" in line:
-                    key_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
-                elif "SSE" in line:
-                    sse_list.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
-            f.close()
-            sse_list = normalize_list(sse_list)
-            tuple_list = list(zip(key_list, sse_list))
-            del tuple_list[0]
-            validation_lists.append(tuple_list)
-        make_Q_validation_graph(validation_lists, title_list, "Episodes Validation SSE")
+    """
 
 
     def analyze_Q_validation_files_w_intervals(self):
