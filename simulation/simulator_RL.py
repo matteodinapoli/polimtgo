@@ -9,20 +9,21 @@ import scipy.stats as st
 class Simulator_RL(Simulator):
 
     test_mode = False
-    start = "2016-08-01 20:30:55"
+    simulation_steps = 60
+    start = "2016-04-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     rl_predictors_map = {}
     sold_today = {}
     Q_threshold = 0.1
-    simulation_steps = 60
-    split_n = [100, 80, 60, 50, 40, 30, 20, 15, 10, 5, 2]
+    possible_splits_n = [100, 80, 60, 50, 40, 30, 20, 15, 10, 5, 2]
     actual_split_n = 2
-
-    validation_reps = 10
 
 
     def get_datafile_name(self):
-        return "Simulation_FQI"
+        return "Simulation_FQI_B" + str(self.starting_budget) + "_" + str(self.iteration) + "_"
+
+    def get_result_folder(self):
+        return "RL_iterations\\"
 
     def build_investment_map(self):
         #if not self.set_dirs:
@@ -107,12 +108,12 @@ class Simulator_RL(Simulator):
         today_sell_price -= self.get_spread(today_sell_price)
         return today_sell_price
 
-    
+
     def validate_Q_on_episodes_number(self, n):
         self.validate_Q_value_on_parameters_error_difference(self.episodes_n, "Episodes", n)
 
     def validate_Q_on_min_sample_split(self, n):
-        self.validate_Q_value_on_parameters_error_difference(self.split_n, "Split", n)
+        self.validate_Q_value_on_parameters_error_difference(self.possible_splits_n, "Split", n)
 
     def validate_Q_value_on_parameters_error_difference(self, parameter_list, changing_parameter, n=0):
         with open(get_data_location() + "SIM\\" + "Q_validation_result_" + str(changing_parameter) + "_" + str((datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")).strftime("%Y_%m")) + "_" + str(n) + ".txt", "w") as validation_file:
@@ -188,71 +189,6 @@ class Simulator_RL(Simulator):
         make_Q_validation_graph(validation_lists, title_list, "Min Split Validation SSE")
 
 
-    """
-        def validate_n_episodes_on_model_performance(self):
-        with open(get_data_location() + "SIM\\" + "_Episodes_Validation_Result.txt", "w") as validation_file:
-            validation_file.write("**** " + str() + " ****\n")
-            self.init_params_for_validation()
-            for episodes in self.episodes_n:
-                self.actual_episodes_n = episodes
-                for i in range(self.validation_reps):
-                    self.rl_predictors_map = {}
-                    self.launch()
-                pprint(self.results_episodes)
-            for episodes, result_list in self.results_episodes.copy().items():
-                budget = 0
-                pos_n = 0
-                pos = 0
-                neg_n = 0
-                neg = 0
-                for tupla_res in result_list:
-                    budget += tupla_res[0]
-                    pos_n += tupla_res[1]
-                    pos += tupla_res[2]
-                    neg_n += tupla_res[3]
-                    neg += tupla_res[4]
-                budget = budget/float(len(result_list))
-                pos_n = pos_n / float(len(result_list))
-                pos = pos / float(len(result_list))
-                neg_n = neg_n / float(len(result_list))
-                neg = neg / float(len(result_list))
-                validation_file.write("\n **** NUMERO DI EPISODI: " + str(episodes) + " ****\n")
-                validation_file.write("BUDGET FINALE\n")
-                validation_file.write(str(budget) + "\n")
-                validation_file.write("Transazioni positive: " + str(pos_n) + "\n")
-                validation_file.write("Guadagno totale: " + str(pos) + "\n")
-                validation_file.write("Transazioni negative: " + str(neg_n) + "\n")
-                validation_file.write("Perdita totale: " + str(neg) + "\n")
-
-
-    def validate_Q_value_on_effective_reward(self):
-        with open(get_data_location() + "SIM\\" + "Q_validation_result.txt", "w") as validation_file:
-            validation_file.write("\n **** Validation Start Date: " + str(self.now_date) + " ****\n")
-            for episodes in self.episodes_n:
-                self.actual_episodes_n = episodes
-                pprint("**** NUMERO DI EPISODI: " + str(episodes) + " ****")
-                validation_file.write("\n **** NUMERO DI EPISODI: " + str(episodes) + " ****\n")
-
-                self.process_validation(validation_file)
-
-
-    def process_validation(self, validation_file):
-        total_error = 0
-        self.now_date = datetime.datetime.strptime(self.start, "%Y-%m-%d %H:%M:%S")
-        self.rl_predictors_map.clear()
-        self.data.clear()
-        self.build_investment_map()
-        end_date = self.now_date + (datetime.timedelta(hours=24) * self.simulation_steps)
-
-        for card_name, info in self.data.copy().items():
-            pprint(card_name)
-            total_error += (self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, True)) ** 2
-            total_error += (self.rl_predictors_map[card_name].get_Q_error(self.now_date, end_date, False)) ** 2
-        pprint("Error from " + str(self.now_date) + " is " + str(total_error))
-        validation_file.write(" - Total Error: " + str(total_error) + "\n")
-    """
-
-
     def analyze_Q_validation_files_w_intervals(self):
         files_path = get_data_location() + "Q_validation"
         validation_folders = [f for f in listdir(files_path) if os.path.isdir(join(files_path, f))]
@@ -291,12 +227,19 @@ class Simulator_RL(Simulator):
     def get_confidence_interval(self, a):
         return st.t.interval(0.95, len(a) - 1, loc=np.mean(a), scale=st.sem(a))
 
+
 if __name__ == "__main__":
-    sim = Simulator_RL()
-    #sim.validate_n_episodes()
-    #sim.validate_Q_on_episodes_number()
-    #sim.analyze_Q_validation_files_w_intervals()
-    sim.launch()
+    budgets = [500, 1000, 2000, 5000]
+    for x in range(1, 11):
+        sim = Simulator_RL()
+        sim.iteration = x
+        sim.rl_predictors_map = {}
+        for budget in budgets:
+            sim.budget = budget
+            sim.starting_budget = budget
+            """ execute a simulation with the same RL models for each combination of stoploss/stopgain """
+            sim.launch()
+    sim.compute_average()
 
 
 

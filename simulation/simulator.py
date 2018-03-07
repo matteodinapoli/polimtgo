@@ -1,9 +1,10 @@
 # coding=utf-8
 
 from data_parsing.data_builder import *
-
+import re
 
 class Simulator:
+    iteration = 1
 
     releases = {"TST":1444600800000, "AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
     test_mode = False
@@ -25,7 +26,6 @@ class Simulator:
     datafile = None
 
     """ for cross-validation """
-    #episodes_n = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     episodes_n = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 1000]
     actual_episodes_n = 200
     results_episodes = {10: [], 20: [], 30: [], 40: [], 50: [], 60: [], 70: [], 80: [], 90: [], 100: [], 200: [], 300: [], 400: [], 500: [], 600: [], 700: [], 800: [], 900: [], 1000: []}
@@ -37,7 +37,6 @@ class Simulator:
         self.budget = 1000
         self.starting_budget = 1000
         self.simulation_steps = 180
-
 
     def find_current_time_key(self, dict, time):
         to_return =  min(dict.keys(), key=lambda x: abs(x - time) if (x - time) < datetime.timedelta(0) else 1000*abs(x - time))
@@ -157,6 +156,34 @@ class Simulator:
             return 1.98
         return price * 0.05
 
+    def compute_average(self):
+        files_path = get_data_location() + self.get_result_folder()
+        types = ["0_0.txt", "0.2_0.2.txt", "0.4_0.4.txt", "0.6_0.6.txt", "0.8_0.8.txt"]
+        budgets = ["B500", "B1000", "B2000", "B5000"]
+        validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+        for budget in budgets:
+            for type in types:
+                final_results = []
+                for validation_file_name in validation_files:
+                    if type in validation_file_name and budget in validation_file_name:
+                        f = open(join(files_path, validation_file_name), "r")
+                        value = False
+                        for line in f:
+                            if "BUDGET FINALE" in line:
+                                value = True
+                            elif value:
+                                final_results.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                                value = False
+                        f.close()
+                if final_results:
+                    with open(get_data_location() + self.get_result_folder() + "Aggregated_Result_" + budget + "_" + type, "w") as result_file:
+                        avg = np.average(final_results)
+                        result_file.write("Average Result: " + str(avg) + "\n")
+                        variance = np.var(final_results)
+                        result_file.write("Result Variance: " + str(variance) + "\n")
+                        std = np.std(final_results)
+                        result_file.write("Result Standard Deviation: " + str(std) + "\n")
+
     def launch(self):
         for stoploss in self.BH_stoploss_threshold_l:
             self.BH_stoploss_threshold = stoploss
@@ -171,8 +198,6 @@ class Simulator:
                     pprint("********** SIMULATION START **********")
                     with open(get_data_location()+ self.get_result_folder() + self.get_datafile_name() + "_" + str(self. BH_stoploss_threshold) + "_" + str(self.BH_stopgain_threshold) + ".txt", "w") as self.datafile:
                         for step in range(self.simulation_steps):
-
-                            a = datetime.datetime.now()
 
                             pprint("********** " + str(self.now_date) + " **********")
                             self.datafile.write("\n\n")
@@ -222,11 +247,6 @@ class Simulator:
                                 self.datafile.write(str(self.budget) + "\n")
 
                             self.now_date += datetime.timedelta(hours=24)
-
-                            b = datetime.datetime.now()
-                            delta = b - a
-                            pprint("STEP TIME")
-                            print(delta)
 
 
 
