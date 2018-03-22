@@ -9,6 +9,8 @@ class Simulator:
     releases = {"TST":1444600800000, "AER": 1485730800000, "KLD": 1476050400000, "EMN": 1470002400000, "SOI": 1460930400000, "OGW": 1454281200000,  "BFZ": 1444600800000}
     test_mode = False
     set_dirs = []
+    standard_sim_2 = ['2016_04_01', '2016_06_01', '2016_08_01', '2016_10_01', '2016_12_01', '2017_02_01']
+    standard_sim_3 = ['2016_04_01', '2016_07_01', '2016_10_01', '2017_01_01']
 
     data = {}
     transactions = {}
@@ -159,7 +161,7 @@ class Simulator:
     def compute_average(self):
         files_path = get_data_location() + self.get_result_folder()
         types = ["0_0.txt", "0.2_0.2.txt", "0.4_0.4.txt", "0.6_0.6.txt", "0.8_0.8.txt"]
-        budgets = ["B500", "B1000", "B2000", "B5000"]
+        budgets = ["B500_", "B1000_", "B2000_", "B5000_"]
         validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
         for budget in budgets:
             for type in types:
@@ -183,6 +185,97 @@ class Simulator:
                         result_file.write("Result Variance: " + str(variance) + "\n")
                         std = np.std(final_results)
                         result_file.write("Result Standard Deviation: " + str(std) + "\n")
+
+
+    def transform_in_boxplot(self):
+        types = ["0_0.txt", "0.2_0.2.txt", "0.4_0.4.txt", "0.6_0.6.txt", "0.8_0.8.txt"]
+
+        object = "SL120_Simulations\\B2000\\2 months"
+        base_files_path = get_data_location() + object
+        subfolders = next(os.walk(base_files_path))[1]
+        pprint(subfolders)
+
+        for th_type in types:
+            final_results = []
+            xes = []
+            names = []
+            lists = []
+            for subfolder in subfolders:
+                if subfolder in self.standard_sim_2:
+                    files_path = join(base_files_path, subfolder)
+                    validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+                    for validation_file_name in validation_files:
+                        if th_type in validation_file_name:
+                            f = open(join(files_path, validation_file_name), "r")
+                            value = False
+                            for line in f:
+                                if "BUDGET FINALE" in line:
+                                    value = True
+                                elif value:
+                                    final_results.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                                    value = False
+                            f.close()
+                    xes.append(subfolder.replace("_", "/"))
+                    names.append(subfolder.replace("_", "/"))
+                    lists.append(final_results)
+                    final_results = []
+            draw_box_graph(names, xes, lists, object.replace("\\", "_") + "_" + th_type, False)
+
+
+
+    def transform_in_grouped_boxplot(self):
+
+        budgets = [500, 1000, 2000, 5000]
+        windows = ["SL60", "SL90", "SL120", "SL_ALL"]
+        months = ["2 months", "3 months"]
+
+        types = ["0_0.txt", "0.2_0.2.txt", "0.4_0.4.txt", "0.6_0.6.txt", "0.8_0.8.txt"]
+        types_to_names = {"0_0.txt": "SL/TP = 0", "0.2_0.2.txt": "SL/TP = 0.2",
+                          "0.4_0.4.txt": "SL/TP = 0.4", "0.6_0.6.txt": "SL/TP = 0.6",
+                          "0.8_0.8.txt": "SL/TP = 0.8"}
+
+        for month in months:
+            for window in windows:
+                for budget in budgets:
+                    object = window + "_Simulations\\B" + str(budget) + "\\" + month
+                    base_files_path = get_data_location() + object
+                    subfolders = next(os.walk(base_files_path))[1]
+                    pprint(subfolders)
+
+                    xes = []
+                    names = []
+                    lists = []
+                    for th_type in types:
+                        final_results = []
+                        temp_x = []
+                        for subfolder in subfolders:
+                            if month == "2 months":
+                                date_set = self.standard_sim_2
+                            else:
+                                date_set = self.standard_sim_3
+                            if subfolder in date_set:
+                                files_path = join(base_files_path, subfolder)
+                                validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
+                                for validation_file_name in validation_files:
+                                    if th_type in validation_file_name:
+                                        f = open(join(files_path, validation_file_name), "r")
+                                        value = False
+                                        for line in f:
+                                            if "BUDGET FINALE" in line:
+                                                value = True
+                                            elif value:
+                                                final_results.append(float(re.findall(r"[-+]?\d*\.\d+|\d+", line)[0]))
+                                                temp_x.append(subfolder.replace("_", "/"))
+                                                value = False
+                                        f.close()
+                        names.append(types_to_names[th_type])
+                        lists.append(final_results)
+                        xes.append(temp_x)
+                    draw_box_graph(names, xes, lists, object.replace("\\", "_"), True, budget)
+
+
+
+
 
     def launch(self):
         for stoploss in self.BH_stoploss_threshold_l:
@@ -274,4 +367,7 @@ class Simulator:
         return "SIM\\"
 
 
-
+if __name__ == "__main__":
+    sim = Simulator()
+    sim.transform_in_grouped_boxplot()
+    #sim.transform_in_boxplot()

@@ -19,7 +19,7 @@ tour_date_count_map = {}
 
 
 def get_data_location():
-    return "C:\\Users\\pitu\\Desktop\\"
+    return "C:\\Users\\679405\\Desktop\\"
 
 
 def get_tournament_card_count(path):

@@ -56,6 +56,50 @@ def make_pearson_corr_graph(lists, pdict, adict, dicts_title, set_dir, title):
 
 
 
+def draw_box_graph(names, xes, lists, title, grouped = True, budget = 500):
+    base_path = get_data_location() + "box_plots"
+    data_comp = []
+    i = 0
+    for lis in lists:
+        trace = go.Box(
+            y=lis,
+            x = xes[i],
+            name=names[i],
+            boxmean=True,
+            boxpoints=False
+        )
+        data_comp.append(trace)
+        i += 1
+    layout = go.Layout(
+        legend=dict(orientation="h"),
+        shapes=[{
+            'type': 'line',
+            'xref': 'paper',
+            'yref': 'y',
+            'x0': 0,
+            'y0': budget,
+            'x1': 95,
+            'y1': budget,
+            'line': {
+                'color': '#444444',
+                'width': 2,
+            },
+        }],
+        margin=go.Margin(
+            r=0,
+            l=50,
+            t =50,
+            pad =5
+        ),
+    )
+    if grouped:
+        layout['boxmode'] = "group"
+    fig = go.Figure(data=data_comp, layout=layout)
+    fig['data'] = data_comp
+    plotly.offline.plot(fig, filename=str(base_path) + "\\" + str(title), auto_open=False)
+
+
+
 def draw_graph(data_comp, annotations, pdict, adict, set_dir, title):
 
     fig = tools.make_subplots(rows=2, cols=1)
