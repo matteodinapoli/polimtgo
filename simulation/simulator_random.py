@@ -7,14 +7,15 @@ import pathlib as pb
 class Simulator_Random(Simulator):
     test_mode = False
     start = "2016-10-01 20:30:55"
-    simulation_steps = 60
+    simulation_steps = 90
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     N_of_investments = 5
     #BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
     #BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
     BH_stoploss_threshold_l = [0.6]
     BH_stopgain_threshold_l = [0.6]
-    budgets = [500, 2000, 5000]
+    budgets = [1000, 500, 2000, 5000]
+    starts = ["2016-04-01 20:30:55", "2016-07-01 20:30:55", "2016-10-01 20:30:55", "2017-01-01 20:30:55"]
 
 
     def get_datafile_name(self):
@@ -97,7 +98,6 @@ if __name__ == "__main__":
                 sim.starting_budget = budget
                 sim.launch()
             sim.aggregate_simulation_results()
-
 
 
 

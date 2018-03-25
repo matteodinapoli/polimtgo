@@ -364,10 +364,12 @@ def make_Q_validation_intervals_graph(x_axis, triplets, title_list, title):
 
 def make_intervals_comparison_graph(x_axis, names, triplets, title, budget):
     base_path = get_data_location() + "Intervals\\"
-    colors = ['rgba(214,39,40,0.3)', 'rgba(86, 72, 146, 0.3)', 'rgba(148,103,189, 0.3)', 'rgba(31,119,180, 0.3)', 'rgba(255,127,14, 0.3)', 'rgba(44,160,44, 0.3)']
+    colors = ['rgba(214,39,40,0.3)', 'rgba(59,56,168, 0.3) ', 'rgba(86, 72, 146, 0.3)', 'rgba(148,103,189, 0.3)', 'rgba(31,119,180, 0.3)', 'rgba(255,127,14, 0.3)', 'rgba(44,160,44, 0.3)']
     # 31 blue 0.0, 44 green 0.4, 214 red 0.6, 255 orange 0.2, 148 purple 0.8   rgba(112, 73, 147, 0.3)
+    # Random: 3B38A8 -> rgba(59,56,168, 0.3)
     data = []
     i = 0
+    #names = ["POL", "RND"]
     for triplet in triplets:
         upper_bound = go.Scatter(
             x=x_axis,

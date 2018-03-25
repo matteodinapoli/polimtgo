@@ -8,7 +8,7 @@ standard_sim_3 = ['2016_04_01', '2016_07_01', '2016_10_01', '2017_01_01']
 types_to_names = {"0_0.txt": "SL/TP = 0", "0.0_0.0.txt": "SL/TP = 0", "0.2_0.2.txt": "SL/TP = 0.2",
                   "0.4_0.4.txt": "SL/TP = 0.4", "0.6_0.6.txt": "SL/TP = 0.6",
                   "0.8_0.8.txt": "SL/TP = 0.8"}
-
+windows_to_names = {"SL_ALL" : "POL", "SL_RND" : "RND"}
 
 
 def transform_simulations_in_boxplot():
@@ -98,7 +98,7 @@ def transform_simulations_in_grouped_boxplot():
 def transform_in_benchmark_grouped_boxplot():
     budgets = [1000]
     windows = ["SL_ALL", "SL_RND"]
-    months = ["2 months"]
+    months = ["3 months"]
     types = ["0.6_0.6.txt"]
 
     for month in months:
@@ -138,7 +138,7 @@ def transform_in_benchmark_grouped_boxplot():
                                             temp_x.append(subfolder.replace("_", "/"))
                                             value = False
                                     f.close()
-                    names.append(types_to_names[th_type])
+                    names.append(windows_to_names[window])
                     lists.append(final_results)
                     xes.append(temp_x)
             draw_box_graph(names, xes, lists, object.replace("\\", "_"), True, 0)
@@ -147,7 +147,7 @@ def transform_in_benchmark_grouped_boxplot():
 def make_real_mean_intervals_graph():
     types = ["0.6_0.6.txt"]
     budget = "1000"
-    months = "2 months"
+    months = "3 months"
 
     objects = ["SL_ALL_Simulations\\B" + budget + "\\" + months, "SL_RND_Simulations\\B" + budget + "\\" + months]
 
@@ -169,7 +169,7 @@ def make_real_mean_intervals_graph():
             final_results = []
             first_it = True
             for subfolder in subfolders:
-                if subfolder in standard_sim_2:
+                if subfolder in standard_sim_3:
                     files_path = join(base_files_path, subfolder)
                     validation_files = [f for f in listdir(files_path) if isfile(join(files_path, f))]
                     for validation_file_name in validation_files:
@@ -238,8 +238,8 @@ def get_confidence_interval(a):
 
 
 if __name__ == "__main__":
-    transform_in_benchmark_grouped_boxplot()
+    # transform_in_benchmark_grouped_boxplot()
     # transform_simulations_in_grouped_boxplot()
     # transform_simulations_in_boxplot()
-    # make_real_mean_intervals_graph()
+    make_real_mean_intervals_graph()
     # make_running_profit_graph()
