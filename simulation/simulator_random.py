@@ -1,19 +1,31 @@
 from reinforcement_learning.FQI_learner import *
 from simulation.simulator import Simulator
 import random
-
+import pathlib as pb
 
 
 class Simulator_Random(Simulator):
     test_mode = False
-    start = "2016-07-01 20:30:55"
+    start = "2016-10-01 20:30:55"
+    simulation_steps = 60
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     N_of_investments = 5
-    BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6]
-    BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6]
+    #BH_stoploss_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
+    #BH_stopgain_threshold_l = [0, 0.2, 0.4, 0.6, 0.8]
+    BH_stoploss_threshold_l = [0.6]
+    BH_stopgain_threshold_l = [0.6]
+    budgets = [500, 2000, 5000]
+
 
     def get_datafile_name(self):
         return "Simulation_RANDOM_B" + str(self.starting_budget) + "_" + str(self.iteration) + "_"
+
+    def get_result_folder(self):
+        months = self.simulation_steps / 30
+        month_folder = str(int(months)) + " months"
+        final_dir = "Random_Data\\B" + str(self.starting_budget) + "\\" + month_folder + "\\" + self.start[0:10].replace("-", "_") + "\\"
+        pb.Path(join(get_data_location(), final_dir)).mkdir(parents=True, exist_ok=True)
+        return final_dir
 
     def build_investment_map(self):
         self.evaluate_available_sets()
@@ -57,12 +69,13 @@ class Simulator_Random(Simulator):
             for past_price, quantity in price_key.copy().items():
                 gain = today_sell_price - past_price
                 gain_percentage = gain / float(past_price)
-                if gain_percentage > self.BH_stopgain_threshold:
+                if gain_percentage > self.BH_stopgain_threshold or - gain_percentage > self.BH_stoploss_threshold:
                     self.sell_cards(card_name, past_price, today_sell_price)
                     if card_name in self.transactions:
                         self.transactions[card_name].append([quantity, gain])
                     else:
                         self.transactions[card_name] = [[quantity, gain]]
+
 
 
     def get_price_from_data_map(self, card_name):
@@ -73,22 +86,17 @@ class Simulator_Random(Simulator):
         return price
 
 
-    def get_result_folder(self):
-        return "Random_Data\\"
-
-
 if __name__ == "__main__":
     sim = Simulator_Random()
-    budgets = [500, 1000, 2000, 5000]
-    for budget in budgets:
-        for x in range(1, 11):
-            sim.iteration = x
-            sim.budget = budget
-            sim.starting_budget = budget
-            sim.launch()
-        sim.compute_average()
-
-
+    for start in sim.starts:
+        sim.start = start
+        for budget in sim.budgets:
+            for x in range(1, 11):
+                sim.iteration = x
+                sim.budget = budget
+                sim.starting_budget = budget
+                sim.launch()
+            sim.aggregate_simulation_results()
 
 
 

@@ -2,16 +2,16 @@ from reinforcement_learning.FQI_learner import *
 from simulation.simulator import Simulator
 import re
 import scipy.stats as st
-
+import pathlib as pb
 
 
 
 class Simulator_RL(Simulator):
 
     test_mode = False
-    training_set_days = 60
-    simulation_steps = 60
-    start = "2016-02-01 20:30:55"
+    training_set_days = 90
+    simulation_steps = 90
+    start = "2016-12-01 20:30:55"
     now_date = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
     rl_predictors_map = {}
     sold_today = {}
@@ -24,7 +24,11 @@ class Simulator_RL(Simulator):
         return "Simulation_FQI_B" + str(self.starting_budget) + "_" + str(self.iteration) + "_"
 
     def get_result_folder(self):
-        return "RL_iterations\\"
+        months = self.simulation_steps / 30
+        month_folder = str(int(months)) + " months"
+        final_dir = "RL_iterations\\B" + str(self.starting_budget) + "\\" + month_folder + "\\" + self.start[0:10].replace("-","_") + "\\"
+        pb.Path(join(get_data_location(), final_dir)).mkdir(parents=True, exist_ok=True)
+        return final_dir
 
     def build_investment_map(self):
         #if not self.set_dirs: #uncomment to consider only the initial sets for all the simulation
@@ -232,16 +236,19 @@ class Simulator_RL(Simulator):
 
 if __name__ == "__main__":
     budgets = [500, 1000, 2000, 5000]
-    for x in range(1, 11):
-        sim = Simulator_RL()
-        sim.iteration = x
-        sim.rl_predictors_map = {}
-        for budget in budgets:
-            sim.budget = budget
-            sim.starting_budget = budget
-            """ execute a simulation with the same RL models for each combination of stoploss/stopgain """
-            sim.launch()
-    sim.compute_average()
+    sim = Simulator_RL()
+    for start in sim.starts:
+        for x in range(1 , 11):
+            sim = Simulator_RL()
+            sim.start = start
+            sim.iteration = x
+            sim.rl_predictors_map = {}
+            for budget in budgets:
+                sim.budget = budget
+                sim.starting_budget = budget
+                """ execute a simulation with the same RL models for each combination of stoploss/stopgain """
+                sim.launch()
+        sim.aggregate_simulation_results()
 
 
 
